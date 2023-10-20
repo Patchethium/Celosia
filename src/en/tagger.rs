@@ -30,6 +30,7 @@ impl AveragedPerceptron {
       _tstamps,
     }
   }
+
   pub fn predict(
     &self,
     features: &BTreeMap<String, i32>,
