@@ -1,5 +1,5 @@
 pub mod tagger;
 pub mod tokenizer;
 pub mod phonemizer;
-pub mod rnn;
+pub mod model;
 pub mod constants;
