@@ -22,24 +22,20 @@
 
 1. Retrieve the full context label from the text with `openjtalk-rs`.
 2. Parse the context label, retrieve accent phrases and their mora boundary information.
-3. We ignore OOV words for Mandarin Character's UTF code doesn't have anything to do with spelling.
+4. We ignore OOV words for the UTF code doesn't contain any information of spelling.
 
 #### Mandarin Chinese
 
 1. Segment text with `jieba-rs` into words.
 2. Look up words in `CC-CEDICT` for pinyin and tones.
 3. For words that have multiple spellings, use a CRF model to disambiguate them.
-4. We ignore OOV words for Japanese Kanji's UTF code doesn't have anything to do with spelling.
+4. We ignore OOV words for the UTF code doesn't contain any information of spelling.
 
 #### French
 
-French generally doesn't have the "one word, multiple spelling" problem that is common in the languages above, nor does it have segmentation problems.
+French generally doesn't have the disambiguation (i.e. one word, multiple spelling) problem that is commonly seen in the languages above.
 1. Look up words in prosodylab's dictionary.
 2. For OOV words, predict the spelling with a g2p<sup>[2](#terminology)</sup> model.
-
-#### Spanish
-
-We use a rule-based automaton to predict Spanish.
 
 ## Motivation
 
@@ -47,7 +43,7 @@ We have alternatives like `espeak-ng`, but they lack some essential features, su
 
 ## License
 
-Dual-licensed under the Apache License, Version 2.0 http://www.apache.org/licenses/LICENSE-2.0 or the MIT license http://opensource.org/licenses/MIT, at your option. This file may not be copied, modified, or distributed except according to those terms.
+`Anthelia` is dual-licensed under the Apache License, Version 2.0 http://www.apache.org/licenses/LICENSE-2.0 or the MIT license http://opensource.org/licenses/MIT, at your option. This file may not be copied, modified, or distributed except according to those terms.
 
 ## Terminology
 
