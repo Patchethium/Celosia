@@ -218,7 +218,7 @@ impl Decoder {
       .embedding
       .forward(&array![dec_idx])
       .remove_axis(Axis(0)); // [N]
-    let rnn_input:Array1<f32> = concatenate(Axis(0), &[attn_o.view(), dec_emb.view()])?;
+    let rnn_input: Array1<f32> = concatenate(Axis(0), &[attn_o.view(), dec_emb.view()])?;
     let h: Array1<f32> = self.gru_cell.forward(&rnn_input, &h); // dec_o:[1,N], h:[N]
     let dec_fc_o: usize = self.fc.forward(&h).argmax()?;
     Ok((dec_fc_o, h))

@@ -1,5 +1,5 @@
 use anthelia::en::{
-  model::{GRUCell, Linear, GRU, Embedding, Encoder},
+  model::{Embedding, Encoder, GRUCell, Linear, GRU},
   tagger::PerceptronTagger,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -34,16 +34,16 @@ fn get_gru(h_dim: usize) -> GRU {
   GRU::new(gru_cell, true)
 }
 
-fn get_linear(i_dim: usize, o_dim: usize) ->Linear {
+fn get_linear(i_dim: usize, o_dim: usize) -> Linear {
   let weight: Array2<f32> = Array::random((o_dim, i_dim), Uniform::new(0., 10.));
   let bias: Array1<f32> = Array::random((o_dim,), Uniform::new(0., 10.));
-  Linear::new(weight,bias)
+  Linear::new(weight, bias)
 }
 
 fn gru_benchmark(c: &mut Criterion) {
   let h_dim = 256;
   let seq_dim = 12;
-  
+
   let gru = get_gru(h_dim);
 
   let x: Array2<f32> = Array::random((seq_dim, h_dim), Uniform::new(0., 10.));
@@ -64,9 +64,9 @@ fn encoder_benchmark(c: &mut Criterion) {
   let emb_weight = Array::random((h_dim, 10), dist);
   let emb = Embedding::new(emb_weight);
 
-  let mut data = Array::random((seq_dim, ), dist_usize);
+  let mut data = Array::random((seq_dim,), dist_usize);
 
-  let encoder = Encoder::new(emb, gru, gru_rev, get_linear(2*h_dim, h_dim));
+  let encoder = Encoder::new(emb, gru, gru_rev, get_linear(2 * h_dim, h_dim));
 
   c.bench_function("bench_encoder", |b| b.iter(|| encoder.forward(&mut data)));
 }

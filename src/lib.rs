@@ -3,7 +3,7 @@ pub mod en;
 #[cfg(test)]
 mod tests {
   use crate::en::constants::AMEPD_PHONE_SET;
-use crate::en::model::{Attention, GRUCell, Linear, GRU, Encoder, Embedding, G2P, Decoder};
+  use crate::en::model::{Attention, Decoder, Embedding, Encoder, GRUCell, Linear, G2P, GRU};
   use crate::en::tagger::PerceptronTagger;
   use crate::en::tokenizer::naive_split;
   use ndarray::{Array, Array1, Array2};
@@ -78,7 +78,7 @@ use crate::en::model::{Attention, GRUCell, Linear, GRU, Encoder, Embedding, G2P,
 
     let gru = GRU::new(gru_cell, true);
 
-    let h = Array::zeros((h_dim, ));
+    let h = Array::zeros((h_dim,));
 
     let x: Array2<f32> = Array::random((seq_dim, h_dim), dist);
 
@@ -104,7 +104,7 @@ use crate::en::model::{Attention, GRUCell, Linear, GRU, Encoder, Embedding, G2P,
     println!("{:?}", attn.forward(&enc_o, &dec_o).shape())
   }
 
-  fn get_gru_cell(i_dim:usize, h_dim: usize) -> GRUCell {
+  fn get_gru_cell(i_dim: usize, h_dim: usize) -> GRUCell {
     let w_ih: Array2<f32> = Array::random((3 * h_dim, i_dim), Uniform::new(0., 10.));
     let w_hh: Array2<f32> = Array::random((3 * h_dim, h_dim), Uniform::new(0., 10.));
 
@@ -119,12 +119,11 @@ use crate::en::model::{Attention, GRUCell, Linear, GRU, Encoder, Embedding, G2P,
     gru_cell
   }
 
-  fn get_gru(i_dim:usize, h_dim: usize) -> GRU {
+  fn get_gru(i_dim: usize, h_dim: usize) -> GRU {
     let gru_cell = get_gru_cell(i_dim, h_dim);
 
     GRU::new(gru_cell, true)
   }
-
 
   fn get_linear(i_dim: usize, o_dim: usize) -> Linear {
     let weight: Array2<f32> = Array::random((o_dim, i_dim), Uniform::new(0., 10.));
@@ -138,29 +137,31 @@ use crate::en::model::{Attention, GRUCell, Linear, GRU, Encoder, Embedding, G2P,
     let seq_dim = 12;
     let dist = Uniform::new(0., 10.);
     let dist_usize = Uniform::<usize>::new(0, 10);
-  
+
     let gru = get_gru(h_dim, h_dim);
     let gru_rev = get_gru(h_dim, h_dim);
-  
+
     let emb_weight = Array::random((10, h_dim), dist);
     let emb = Embedding::new(emb_weight);
-  
-    let mut data = Array::random((seq_dim, ), dist_usize);
-  
-    let encoder = Encoder::new(emb, gru, gru_rev, get_linear(2*h_dim, h_dim));
+
+    let mut data = Array::random((seq_dim,), dist_usize);
+
+    let encoder = Encoder::new(emb, gru, gru_rev, get_linear(2 * h_dim, h_dim));
     let (opt, h) = encoder.forward(&mut data).unwrap();
-    println!("{:?}, {:?}", opt.shape(),h.shape());
+    println!("{:?}, {:?}", opt.shape(), h.shape());
   }
   #[test]
   fn test_g2p() {
     let path = "./data/en_rnn.bin";
     let g2p = G2P::from_file(path).unwrap();
-    let indices: Array1<usize> = Array1::from_vec(vec!(1, 7, 4, 12, 22, 28, 2));
+    let indices: Array1<usize> = Array1::from_vec(vec![1, 7, 4, 12, 22, 28, 2]);
     let output = g2p.forward(&indices).unwrap();
-    let phoneme: Vec<&str> = output.iter().map(|i| AMEPD_PHONE_SET[i.clone() as usize]).collect();
+    let phoneme: Vec<&str> = output
+      .iter()
+      .map(|i| AMEPD_PHONE_SET[i.clone() as usize])
+      .collect();
     println!("{:?}", phoneme);
 
     // println!("{:?}", g2p.attn.k.weight);
-
   }
 }

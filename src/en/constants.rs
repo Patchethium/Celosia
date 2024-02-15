@@ -13,9 +13,9 @@ pub const AMEPD_PHONE_SET: [&'static str; 74] = [
   "zh",
 ];
 
-pub const ALPHABETS: [&str; 29] = [
-  "<pad>", "<sos>", "<eos>", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s",
-  "t", "u", "v", "w", "x", "y", "z",
+pub const ALPHABETS: [&str; 30] = [
+  "<pad>", "<sos>", "<eos>", "'", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+  "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
 ];
 
 pub const CONSONANTS: [&'static str; 24] = [
