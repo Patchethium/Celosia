@@ -6,7 +6,7 @@
 
 </div>
 
-`Anthelia` (ae0 n th iy1 l iy0 ax) is a Rust phonemizer[^1] that focuses on turning a sentence of natural language into its phoneme transcript automatically. Supports English (amepd), Japanese (romaji), Mandarin (pinyin) and French (prosodylab), with language-specific data (stress, accent and tones).
+`Anthelia` (ae0 n th iy1 l iy2 ax) is a Rust phonemizer[^1] that focuses on turning a sentence of natural language into its phoneme transcript automatically. Supports English (amepd), Japanese (romaji), Mandarin (pinyin) and French (prosodylab), with language-specific data (stress, accent and tones).
 
 **🚧 WIP, DO NOT USE 🚧**
 
