@@ -1,3 +1,4 @@
+import os
 from random import randint
 
 import torch
@@ -6,16 +7,21 @@ from torch.nn.utils.rnn import pad_sequence
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.tensorboard.writer import SummaryWriter
+from torch.nn.utils.clip_grad import clip_grad_norm_
 
 from omegaconf import OmegaConf
 from model import G2P
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 CONF = OmegaConf.load("./config/en.yaml")
 
 alphabets = CONF.specials + CONF.alphabets
 phonemes = CONF.specials + CONF.phonemes
 
+if not os.path.exists("./ckpt"):
+    os.mkdir("./ckpt")
+
+torch.manual_seed(CONF.seed)
 
 class EnDataset(Dataset):
     def __init__(self, dict_path: str) -> None:
@@ -48,9 +54,13 @@ class EnDataset(Dataset):
 
 
 def collate_fn(batch: list[tuple[Tensor, Tensor]]):
+    # use left padding, flip and flip back after padding
+    word_list = [t[0].flip(dims=[0]) for t in batch]  # list[S_text,]
+    # [B,S_text]
     word_batch = pad_sequence(
-        [t[0] for t in batch], padding_value=CONF.pad_idx, batch_first=True
-    )
+        word_list, padding_value=CONF.pad_idx, batch_first=True
+    ).flip(dims=[1])
+
     ph_batch = pad_sequence(
         [t[1] for t in batch], padding_value=CONF.pad_idx, batch_first=True
     )
@@ -79,6 +89,7 @@ def train():
             o = o.permute(0, 2, 1)
             loss = loss_func.forward(o, p)
             loss.backward()
+            clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
             writer.add_scalar("Train loss", loss, global_step=global_step)
             global_step += 1
@@ -98,7 +109,9 @@ def train():
                 )
 
                 # test, print a random sample from test set
-                print(f"Epoch {e+1}, train loss: {loss}, val loss: {val_loss / val_batches}")
+                print(
+                    f"Epoch {e+1}, train loss: {loss}, val loss: {val_loss / val_batches}"
+                )
                 test_case = test_ds[randint(0, len(test_ds))]
                 w, p = test_case
                 attn, o = model.forward(w.unsqueeze(0), p.unsqueeze(0))  # [1,S,N]
@@ -116,11 +129,9 @@ def train():
                     f"Test result:\n\t Source: {word},\n\t Target: {tgt_phoneme},\n\t Pred: {pred_phoenme}"
                 )
 
-                # calculate bleu score
-
                 model.train()
-
-        torch.save(model.state_dict(), f"./ckpt/en-ckpt-epoch-{e}.pth")
+        if (e + 1) % 10 == 0 or e == CONF.epochs:
+            torch.save(model.state_dict(), f"./ckpt/en-ckpt-epoch-{e+1}.pth")
         scheduler.step()
 
 
