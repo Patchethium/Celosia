@@ -44,4 +44,7 @@ You'll find checkpoints in `train/ckpt` and config the training with `train/conf
 
 `WIP`
 
-Note: this g2p module is intended to be used on OOVs with average length (3-15), use the lexicon dictionary for other words. Also, it is uncased, which means it won't see a difference between `english` and `English`
+### Note:
+- This g2p model is intended to be used on OOVs with average length (3-15), use the lexicon dictionary for other words.
+- This model is uncased, which means it won't see a difference between `english` and `English`.
+- This model makes attention failure, Anthelia combines repeated phonemes to affiliate it. Help in improving robustness is welcomed.
