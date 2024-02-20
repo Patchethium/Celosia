@@ -15,7 +15,11 @@ pip install -r requirements.txt
 Prepare the `amepd` dict
 
 ```bash
-cd train/data
+cd train
+
+mkdir data
+
+cd data
 
 wget https://github.com/rhdunn/amepd/archive/refs/tags/amepd-0.2.zip
 

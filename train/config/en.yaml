@@ -6,9 +6,9 @@ pad_idx: 0
 sos_idx: 1
 eos_idx: 2
 
-batch_size: 32
+batch_size: 64
 tf_ratio: 0.5
-epochs: 15
+epochs: 25
 lr: 0.0005
 lr_decay: 0.9
 

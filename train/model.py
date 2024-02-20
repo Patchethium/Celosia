@@ -12,7 +12,7 @@ from torch import Tensor, nn
 
 class G2P(nn.Module):
     def __init__(self, conf):
-        super().__init__()
+        super(G2P, self).__init__()
         self.c = conf
         d_model = conf.d_model
         d_alphabet = conf.d_special + conf.d_alphabet
@@ -43,6 +43,7 @@ class G2P(nn.Module):
 
     def forward(self, word: Tensor, tgt: Tensor):
         # [B,S_text,] [B,S_phoneme]
+        device = self.dec_post.weight.device
         enc_emb = self.dropout(self.enc_emb(word))
         enc_x, h = self.enc_rnn(enc_emb)
         h = F.tanh(
@@ -67,13 +68,15 @@ class G2P(nn.Module):
         # attn_o = h.permute(1,0,2)  # [B,1,N]
 
         dec_i = (
-            torch.LongTensor([self.c.sos_idx]).repeat(tgt.shape[0]).unsqueeze(1)
-        )  # [B,1]
+            torch.LongTensor([self.c.sos_idx])
+            .repeat(tgt.shape[0])
+            .unsqueeze(1)
+        ).to(device)  # [B,1]
 
-        res = torch.zeros([tgt.shape[0], tgt.shape[1], self.d_phoneme])  # [B,S_ph,N]
+        res = torch.zeros([tgt.shape[0], tgt.shape[1], self.d_phoneme]).to(device)  # [B,S_ph,N]
         attn_res = torch.zeros(
             [tgt.shape[0], tgt.shape[1], word.shape[1]]
-        )  # [B,S_ph,S_text]
+        ).to(device)  # [B,S_ph,S_text]
 
         for t in range(tgt.shape[1]):
             if random() < self.c.tf_ratio and self.training:

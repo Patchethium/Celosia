@@ -66,14 +66,13 @@ def train():
     val_dl = DataLoader(
         val_ds, batch_size=CONF.batch_size, shuffle=False, collate_fn=collate_fn
     )
-    model = G2P(CONF)
+    model = G2P(CONF).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=CONF.lr)
     scheduler = ExponentialLR(optimizer, gamma=CONF.lr_decay)
     loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx)
     writer = SummaryWriter()
     global_step = 0
     for e in range(CONF.epochs):
-        print(f"Epoch {e+1}, training...")
         for w, p in train_dl:
             optimizer.zero_grad()
             _, o = model.forward(w, p)
@@ -87,7 +86,6 @@ def train():
             with torch.no_grad():
                 model.eval()
                 # valdate into tensorboard
-                print(f"Epoch {e+1}, validating...")
                 val_loss = 0
                 val_batches = 0
                 for w, p in val_dl:
@@ -100,7 +98,7 @@ def train():
                 )
 
                 # test, print a random sample from test set
-                print(f"Epoch {e+1}, testing...")
+                print(f"Epoch {e+1}, train loss: {loss}, val loss: {val_loss / val_batches}")
                 test_case = test_ds[randint(0, len(test_ds))]
                 w, p = test_case
                 attn, o = model.forward(w.unsqueeze(0), p.unsqueeze(0))  # [1,S,N]
