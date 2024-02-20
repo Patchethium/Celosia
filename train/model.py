@@ -61,6 +61,7 @@ class G2P(nn.Module):
         attn = F.softmax(
             torch.bmm(h.permute(1, 0, 2), k) / self.scaling, dim=-1
         )  # [B,1,S_text]
+        attn = self.dropout(attn)
         attn_o = torch.bmm(attn, v)  # [B,1,N]
 
         # attn_o = h.permute(1,0,2)  # [B,1,N]
