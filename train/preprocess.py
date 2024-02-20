@@ -1,7 +1,11 @@
+import os
+
 from string import ascii_letters
 
 
 def main():
+    if not os.path.exists("./data"):
+        os.mkdir("./data")
     file = open("./data/amepd.txt", "r")
     lines = file.readlines()
     file.close()
@@ -22,6 +26,10 @@ def main():
         for char in word:
             # removes the only entry `threnos` that uses `-`
             if word == "threnos":
+                filtered = True
+                break
+            # removes single character words
+            if len(word) < 2:
                 filtered = True
                 break
             # removes non-ascii words
