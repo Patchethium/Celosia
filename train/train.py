@@ -12,7 +12,7 @@ from torch.nn.utils.clip_grad import clip_grad_norm_
 from omegaconf import OmegaConf
 from model import G2P
 
-DEVICE = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CONF = OmegaConf.load("./config/en.yaml")
 
 alphabets = CONF.specials + CONF.alphabets
@@ -86,15 +86,14 @@ def train():
     loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx)
     writer = SummaryWriter()
     global_step = 0
+    padding = torch.LongTensor([CONF.pad_idx]).repeat(CONF.batch_size).unsqueeze(1).to(DEVICE)
     for e in range(CONF.epochs):
         for w, p in train_dl:
             optimizer.zero_grad()
             _, o = model.forward(w, p)
-            # TODO: pre-allocate the padding and clip it to the actual batch size
             # shift the label 1 token left so that the decoder can learn next token prediction
-            padding = torch.LongTensor([CONF.pad_idx]).repeat(p.shape[0]).unsqueeze(1).to(DEVICE)
             p = p[:, 1:]
-            p = torch.cat([p, padding], dim=-1)
+            p = torch.cat([p, padding[:p.shape[0], :]], dim=-1)
             o = o.permute(0, 2, 1)
             loss = loss_func.forward(o, p)
             loss.backward()
