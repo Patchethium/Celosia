@@ -13,8 +13,11 @@ def main():
     state_dict = torch.load(args.file, map_location="cpu")
     f = open(args.output, "wb")
     for k, v in state_dict.items():
+        v: torch.Tensor
         print(k, v.shape)
-        t = v.contiguous().view(-1).detach().cpu().numpy()
+        # save as fp16 to save space
+        # on amepd full set, fp16 and f32 inference results are identical
+        t = v.contiguous().view(-1).detach().cpu().half().numpy()
         f.write(memoryview(t))
     f.close()
 

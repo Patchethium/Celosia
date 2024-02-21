@@ -8,11 +8,11 @@ pad_idx: 0
 sos_idx: 1
 eos_idx: 2
 
-batch_size: 512
+batch_size: 128
 tf_ratio: 0.5
-epochs: 100
+epochs: 10
 lr: 0.001
-lr_decay: 0.95
+lr_decay: 0.75
 
 dropout: 0.3
 

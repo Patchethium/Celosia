@@ -68,6 +68,10 @@ def collate_fn(batch: list[tuple[Tensor, Tensor]]):
 
 
 def train():
+    d_model = CONF.d_model
+    d_alphabet = CONF.d_special + CONF.d_alphabet
+    d_phoneme = CONF.d_special + CONF.d_phoneme
+
     ds = EnDataset("./data/en.txt")
     train_ds, val_ds, test_ds = random_split(ds, [0.9, 0.09, 0.01])
     train_dl = DataLoader(
@@ -76,7 +80,7 @@ def train():
     val_dl = DataLoader(
         val_ds, batch_size=CONF.batch_size, shuffle=False, collate_fn=collate_fn
     )
-    model = G2P(CONF).to(DEVICE)
+    model = G2P(d_alphabet, d_phoneme, d_model, CONF.tf_ratio).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=CONF.lr)
     scheduler = ExponentialLR(optimizer, gamma=CONF.lr_decay)
     loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx)
@@ -86,6 +90,11 @@ def train():
         for w, p in train_dl:
             optimizer.zero_grad()
             _, o = model.forward(w, p)
+            # TODO: pre-allocate the padding and clip it to the actual batch size
+            # shift the label 1 token left so that the decoder can learn next token prediction
+            padding = torch.LongTensor([CONF.pad_idx]).repeat(p.shape[0]).unsqueeze(1).to(DEVICE)
+            p = p[:, 1:]
+            p = torch.cat([p, padding], dim=-1)
             o = o.permute(0, 2, 1)
             loss = loss_func.forward(o, p)
             loss.backward()
@@ -101,6 +110,9 @@ def train():
                 val_batches = 0
                 for w, p in val_dl:
                     _, o = model.forward(w, p)
+                    # same reason as in training
+                    o = o[:, :-1, :]
+                    p = p[:, 1:]
                     o = o.permute(0, 2, 1)
                     val_loss += loss_func.forward(o, p)
                     val_batches += 1
@@ -130,9 +142,8 @@ def train():
                 )
 
                 model.train()
-        if (e + 1) % 10 == 0 or e == CONF.epochs:
             torch.save(model.state_dict(), f"./ckpt/en-ckpt-epoch-{e+1}.pth")
-        scheduler.step()
+            scheduler.step()
 
 
 if __name__ == "__main__":
