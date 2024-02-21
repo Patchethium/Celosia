@@ -1,12 +1,22 @@
+import argparse
 import os
-
 from string import ascii_letters
 
 
-def main():
+def main(lang):
+    match lang:
+        case "en":
+            english()
+            return
+        case "fr":
+            french()
+            return
+
+
+def english():
     if not os.path.exists("./data"):
         os.mkdir("./data")
-    file = open("./data/amepd.txt", "r")
+    file = open("./data/en.dict", "r")
     lines = file.readlines()
     file.close()
     res = []
@@ -45,5 +55,44 @@ def main():
     o_file.close()
 
 
+def french():
+    f = open("./data/fr.dict")
+
+    lines = f.readlines()
+
+    f.close()
+
+    f = open("./data/fr.txt", "w")
+
+    alphabets = set()
+    phonemes = set()
+
+    for line in lines:
+        line = line.rstrip().split(" ")
+        word = line[0].lower()
+        ph = line[1:]
+        ph = [p.lower() for p in ph]
+
+        for c in word:
+            alphabets.add(c)
+        for p in ph:
+            phonemes.add(p)
+
+        f.write(word)
+        f.write("  ")
+        f.write(" ".join(ph))
+        f.write("\n")
+
+    f.close()
+
+    print(list(sorted(list(alphabets))))
+    print(list(sorted(list(phonemes))))
+
+    print(f"Length of alphabets: {len(alphabets)}\nLength of phonemes: {len(phonemes)}")
+
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("lang", default="en")
+    args = parser.parse_args()
+    main(args.lang)

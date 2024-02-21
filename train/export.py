@@ -1,6 +1,7 @@
-import torch
 import argparse
 import os
+
+import torch
 
 
 def main():

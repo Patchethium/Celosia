@@ -10,9 +10,7 @@ It's just a seq2seq gru with attention, don't wanna make things too complex.
 pip install -r requirements.txt
 ```
 
-### English
-
-Prepare the `amepd` dict
+## Data preparation
 
 ```bash
 cd train
@@ -20,29 +18,57 @@ cd train
 mkdir data
 
 cd data
+```
 
+### English
+
+Prepare the `amepd` dict
+
+```bash
 wget https://github.com/rhdunn/amepd/archive/refs/tags/amepd-0.2.zip
 
 unzip amepd-0.2.zip
 
-mv ./amepd-amepd-0.2/cmudict ./amepd.txt
+mv ./amepd-amepd-0.2/cmudict ./en.dict
 
 cd ..
 
-python preprocess.py
+python preprocess.py en
 ```
-
-Then you can run the training
-
-```bash
-python train.py
-```
-
-You'll find checkpoints in `train/ckpt` and config the training with `train/config/en.yaml`.
 
 ### French
 
-`WIP`
+Prepare `prosodylab`'s dictionary
+
+```bash
+wget https://github.com/prosodylab/prosodylab.dictionaries/archive/refs/heads/master.zip
+
+unzip master.zip
+
+mv ./prosodylab.dictionaries-master/fr.dict ./fr.dict
+
+cd ..
+
+python preprocess.py fr
+```
+
+## Training
+
+### English
+
+```bash
+python train.py en
+```
+
+### French
+
+```bash
+python train.py fr
+```
+
+## Config
+
+You'll find checkpoints in `train/ckpt` and config the training with `train/config`.
 
 ### Note:
 - This g2p model is intended to be used on OOVs with average length (3-15), use the lexicon dictionary for other words.

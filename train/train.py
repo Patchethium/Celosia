@@ -1,31 +1,30 @@
+import argparse
 import os
 from random import randint
 
 import torch
+from omegaconf import OmegaConf
 from torch import Tensor, nn, optim
+from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.nn.utils.rnn import pad_sequence
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.tensorboard.writer import SummaryWriter
-from torch.nn.utils.clip_grad import clip_grad_norm_
 
-from omegaconf import OmegaConf
 from model import G2P
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-CONF = OmegaConf.load("./config/en.yaml")
-
-alphabets = CONF.specials + CONF.alphabets
-phonemes = CONF.specials + CONF.phonemes
+CONF = None
 
 if not os.path.exists("./ckpt"):
     os.mkdir("./ckpt")
 
-torch.manual_seed(CONF.seed)
 
-class EnDataset(Dataset):
-    def __init__(self, dict_path: str) -> None:
+class PhDataset(Dataset):
+    def __init__(self, dict_path: str, conf) -> None:
         super().__init__()
+        alphabets = conf.specials + conf.alphabets
+        phonemes = conf.specials + conf.phonemes
         self.data = []
         f = open(dict_path, "r")
         lines = f.readlines()
@@ -37,10 +36,10 @@ class EnDataset(Dataset):
                 continue
             word, phoneme = line.split("  ")
             word_t = torch.LongTensor(
-                [CONF.sos_idx] + [als[c] for c in word] + [CONF.eos_idx]
+                [conf.sos_idx] + [als[c] for c in word] + [conf.eos_idx]
             )
             ph_t = torch.LongTensor(
-                [CONF.sos_idx] + [phs[p] for p in phoneme.split(" ")] + [CONF.eos_idx]
+                [conf.sos_idx] + [phs[p] for p in phoneme.split(" ")] + [conf.eos_idx]
             )
 
             self.data.append((word_t.to(DEVICE), ph_t.to(DEVICE)))
@@ -67,12 +66,20 @@ def collate_fn(batch: list[tuple[Tensor, Tensor]]):
     return word_batch, ph_batch
 
 
-def train():
+def train(lang: str):
+    global CONF
+    CONF = OmegaConf.load(f"./config/{lang}.yaml")
+
+    torch.manual_seed(CONF.seed)
+
+    alphabets = CONF.specials + CONF.alphabets
+    phonemes = CONF.specials + CONF.phonemes
+
     d_model = CONF.d_model
     d_alphabet = CONF.d_special + CONF.d_alphabet
     d_phoneme = CONF.d_special + CONF.d_phoneme
 
-    ds = EnDataset("./data/en.txt")
+    ds = PhDataset(f"./data/{lang}.txt", CONF)
     train_ds, val_ds, test_ds = random_split(ds, [0.9, 0.09, 0.01])
     train_dl = DataLoader(
         train_ds, batch_size=CONF.batch_size, shuffle=True, collate_fn=collate_fn
@@ -86,14 +93,16 @@ def train():
     loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx)
     writer = SummaryWriter()
     global_step = 0
-    padding = torch.LongTensor([CONF.pad_idx]).repeat(CONF.batch_size).unsqueeze(1).to(DEVICE)
+    padding = (
+        torch.LongTensor([CONF.pad_idx]).repeat(CONF.batch_size).unsqueeze(1).to(DEVICE)
+    )
     for e in range(CONF.epochs):
         for w, p in train_dl:
             optimizer.zero_grad()
             _, o = model.forward(w, p)
             # shift the label 1 token left so that the decoder can learn next token prediction
             p = p[:, 1:]
-            p = torch.cat([p, padding[:p.shape[0], :]], dim=-1)
+            p = torch.cat([p, padding[: p.shape[0], :]], dim=-1)
             o = o.permute(0, 2, 1)
             loss = loss_func.forward(o, p)
             loss.backward()
@@ -141,9 +150,12 @@ def train():
                 )
 
                 model.train()
-            torch.save(model.state_dict(), f"./ckpt/en-ckpt-epoch-{e+1}.pth")
+            torch.save(model.state_dict(), f"./ckpt/{lang}-ckpt-epoch-{e+1}.pth")
             scheduler.step()
 
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("lang", default="en")
+    args = parser.parse_args()
+    train(args.lang)

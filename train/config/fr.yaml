@@ -1,0 +1,101 @@
+seed: 3407
+
+d_model: 128
+d_alphabet: 45 # 26 + 1 for `'`
+d_phoneme: 31
+d_special: 3
+pad_idx: 0
+sos_idx: 1
+eos_idx: 2
+
+batch_size: 128
+tf_ratio: 0.5
+epochs: 5 # French is much easier than English, gets bleu 0.97 in 5 epochs
+lr: 0.001
+lr_decay: 0.9
+
+dropout: 0.3
+
+alphabets:
+  [
+    "'",
+    "-",
+    ".",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+    "à",
+    "â",
+    "ã",
+    "ç",
+    "è",
+    "é",
+    "ê",
+    "ë",
+    "î",
+    "ï",
+    "ñ",
+    "ô",
+    "ö",
+    "ù",
+    "û",
+    "ü",
+  ]
+phonemes:
+  [
+    "@",
+    "^",
+    "a",
+    "b",
+    "cinq",
+    "d",
+    "deux",
+    "e",
+    "f",
+    "g",
+    "huit",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "neuf",
+    "o",
+    "p",
+    "r",
+    "s",
+    "t",
+    "to",
+    "u",
+    "un",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+  ]
+specials: ["<pad>", "<sos>", "<eos>"]
