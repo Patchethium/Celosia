@@ -28,6 +28,9 @@ class Encoder(nn.Module):
 
 
 class Attention(nn.Module):
+    """
+    Scaled dot product attention
+    """
     def __init__(self, d_model: int) -> None:
         super(Attention, self).__init__()
         self.scale = 1 / math.sqrt(d_model)
@@ -86,7 +89,7 @@ class G2P(nn.Module):
         res = torch.empty([B, L_PH, self.d_phoneme]).to(device)
         attn = torch.empty([B, L_PH, L_TEXT]).to(device)
         attn_slice, attn_o = self.attn(h.transpose(0, 1), k, v)
-        o = tgt[:, 0].unsqueeze(1).unsqueeze(1)
+        o = tgt[:, 0].unsqueeze(1).unsqueeze(1) #[B,1,1]
 
         for t in range(L_PH):
             attn[:, t, :] = attn_slice.squeeze(1)

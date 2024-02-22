@@ -9,8 +9,13 @@ def main(lang):
             english()
             return
         case "fr":
-            french()
+            prosodylab("fr")
             return
+        case "de":
+            prosodylab("de")
+            return
+        case _:
+            print(f"Language code {lang} is not supported. Should be one of these: [`en`, `fr`, `de`]")
 
 
 def english():
@@ -55,14 +60,14 @@ def english():
     o_file.close()
 
 
-def french():
-    f = open("./data/fr.dict")
+def prosodylab(lang: str):
+    f = open(f"./data/{lang}.dict")
 
     lines = f.readlines()
 
     f.close()
 
-    f = open("./data/fr.txt", "w")
+    f = open(f"./data/{lang}.txt", "w")
 
     alphabets = set()
     phonemes = set()

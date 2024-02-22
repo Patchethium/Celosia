@@ -1,3 +1,4 @@
+# French is much easier than English, gets bleu 0.97 in 5 epochs
 seed: 3407
 
 d_model: 128
@@ -8,10 +9,10 @@ pad_idx: 0
 sos_idx: 1
 eos_idx: 2
 
-batch_size: 128
+batch_size: 512
 tf_ratio: 0.5
-epochs: 5 # French is much easier than English, gets bleu 0.97 in 5 epochs
-lr: 0.001
+epochs: 15
+lr: 0.002
 lr_decay: 0.9
 
 dropout: 0.3

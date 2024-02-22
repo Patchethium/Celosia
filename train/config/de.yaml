@@ -1,0 +1,126 @@
+# the german dictionary size is 3 times bigger
+# than fr and en, it needs bigger batch for speed
+# also gets the best performance with the largest data
+seed: 3407
+
+d_model: 128
+d_alphabet: 30 # 26 + 1 for `'`
+d_phoneme: 68
+d_special: 3
+pad_idx: 0
+sos_idx: 1
+eos_idx: 2
+
+batch_size: 512 
+tf_ratio: 0.5
+epochs: 15 # as easy as French
+lr: 0.002
+lr_decay: 0.9
+
+dropout: 0.3
+
+alphabets:
+  [
+    "#",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+    "ä",
+    "ö",
+    "ü",
+  ]
+phonemes:
+  [
+    "#0",
+    "#1",
+    "$1",
+    "&0",
+    "&1",
+    ")0",
+    ")1",
+    "+",
+    "/0",
+    "/1",
+    "=",
+    "@0",
+    "^1",
+    "_",
+    "a0",
+    "a1",
+    "b",
+    "b0",
+    "b1",
+    "c0",
+    "d",
+    "drei0",
+    "e0",
+    "e1",
+    "eins1",
+    "f",
+    "g",
+    "h",
+    "i0",
+    "i1",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "null0",
+    "null1",
+    "o0",
+    "o1",
+    "p",
+    "q0",
+    "q1",
+    "r",
+    "s",
+    "sechs1",
+    "t",
+    "u0",
+    "u1",
+    "v",
+    "v1",
+    "vier0",
+    "w",
+    "w0",
+    "w1",
+    "x",
+    "x0",
+    "x1",
+    "y0",
+    "y1",
+    "z",
+    "zwei0",
+    "zwei1",
+    "{0",
+    "{1",
+    "|0",
+    "|1",
+    "~0",
+    "~1",
+  ]
+specials: ["<pad>", "<sos>", "<eos>"]

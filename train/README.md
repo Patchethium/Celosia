@@ -1,6 +1,6 @@
 # Training with PyTorch
 
-This directory contains the code for training a g2p model in English and French (WIP).
+This directory contains the code for training a g2p model in English, French and German.
 
 It's just a seq2seq gru with attention, don't wanna make things too complex.
 
@@ -52,6 +52,22 @@ cd ..
 python preprocess.py fr
 ```
 
+### German
+
+Prepare `prosodylab`'s dictionary
+
+```bash
+wget https://github.com/prosodylab/prosodylab.dictionaries/archive/refs/heads/master.zip
+
+unzip master.zip
+
+mv ./prosodylab.dictionaries-master/de.dict ./de.dict
+
+cd ..
+
+python preprocess.py de
+```
+
 ## Training
 
 ### English
@@ -66,9 +82,46 @@ python train.py en
 python train.py fr
 ```
 
+### German
+
+```bash
+python train.py de
+```
+
 ## Config
 
 You'll find checkpoints in `train/ckpt` and config the training with `train/config`.
+
+## Export
+
+To use the checkpoints into weight files `Antheila` can read, run:
+```bash
+python export.py {checkpoint_path} {weight_path}
+
+# example
+python export.py ./ckpt/en-ckpt-epoch-5.pth ./ckpt/en.bin 
+```
+
+## Evaluate
+
+We randomly sample 10% from the dataset to calculate the bleu score.
+
+```bash
+python eval.py {lang} {checkpoint_path}
+
+# example
+python eval.py en ./ckpt/en-ckpt-epoch-5.pth
+```
+
+## Checkpoints
+
+We provide pretrained weights in binary form.
+
+| lang | code |epochs | bleu score |
+| --- | --- | --- | --- |
+| English | en | 30 | 0.79 |
+| French | fr | 15 | 0.98 |
+| German | de | 15 | 0.98 |
 
 ### Note:
 - This g2p model is intended to be used on OOVs with average length (3-15), use the lexicon dictionary for other words.

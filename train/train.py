@@ -57,11 +57,11 @@ def collate_fn(batch: list[tuple[Tensor, Tensor]]):
     word_list = [t[0].flip(dims=[0]) for t in batch]  # list[S_text,]
     # [B,S_text]
     word_batch = pad_sequence(
-        word_list, padding_value=CONF.pad_idx, batch_first=True
+        word_list, padding_value=0, batch_first=True
     ).flip(dims=[1])
 
     ph_batch = pad_sequence(
-        [t[1] for t in batch], padding_value=CONF.pad_idx, batch_first=True
+        [t[1] for t in batch], padding_value=0, batch_first=True
     )
     return word_batch, ph_batch
 

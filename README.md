@@ -6,7 +6,7 @@
 
 </div>
 
-`Anthelia` (ae0 n th iy1 l iy2 ax) is a Rust phonemizer[^1] that focuses on turning a sentence of natural language into its phoneme transcript automatically. Supports English (amepd), Japanese (romaji), Mandarin (pinyin) and French (prosodylab), with language-specific data (stress, accent and tones).
+`Anthelia` (ae0 n th iy1 l iy2 ax) is a Rust phonemizer[^1] that focuses on turning a sentence of natural language into its phoneme transcript automatically. Supports English (amepd), Japanese (romaji), Mandarin (pinyin) and French & German (prosodylab), with language-specific data (stress, accent and tones).
 
 **🚧 WIP, DO NOT USE 🚧**
 
@@ -14,6 +14,7 @@
 
 #### English
 
+English is the hardest one in phonogram, still it's the most popular language and we have to support it.
 1. Look up words in `amepd` for spelling and stress.
 2. For words that have multiple spellings, use the POS tag provided by `amepd` and a `Averaged Perceptron Tagger` to disambiguate them.
 3. For OOV (out-of-vocabulary) words, predict the spelling with a g2p[^2] model.
@@ -31,11 +32,25 @@
 3. For words that have multiple spellings, use a CRF model to disambiguate them.
 4. We ignore OOV words for the UTF code doesn't contain any information of spelling.
 
-#### French
+#### French & German
 
-French generally doesn't have the disambiguation (i.e. one word, multiple spelling) problem that is commonly seen in the languages above.
-1. Look up words in prosodylab's dictionary.
-2. For OOV words, predict the spelling with a g2p[^2] model.
+Thanks for the orthography, French & German generally don't have the disambiguation (i.e. one word, multiple spelling) problem that is commonly seen in the languages above.  
+Also, since the g2p model can achieves a very high bleu score (0.98), we think it's pratical to use it alone without a dictionary. If you want to cut off the dictionary for the binary size, turn on the corresponding features
+```toml
+[dependencies]
+anthelia = { version = "*", features = ["no_dict_fr", "no_dict_de"] }
+```
+1. Look up words in `CC-CEDICT` for pinyin and tones.
+2. Predict the spelling with a g2p[^2] model.
+
+### Languages
+
+If you only use a subset of these languages, you can prune unused languages for the binary size. Some complex languages like Japanese takes some huge size.
+
+```toml
+[dependencies]
+anthelia = { version = "*", features = ["fr"]} # langs other than French won't be included.
+```
 
 ## Motivation
 
