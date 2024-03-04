@@ -13,7 +13,7 @@ eos_idx: 2
 
 batch_size: 512 
 tf_ratio: 0.5
-epochs: 15 # as easy as French
+epochs: 30 # as easy as French
 lr: 0.002
 lr_decay: 0.9
 

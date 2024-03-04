@@ -119,9 +119,9 @@ We provide pretrained weights in binary form.
 
 | lang | code |epochs | bleu score |
 | --- | --- | --- | --- |
-| English | en | 30 | 0.79 |
-| French | fr | 15 | 0.98 |
-| German | de | 15 | 0.98 |
+| English | en | 30 | 0.80 |
+| French | fr | 30 | 0.99 |
+| German | de | 30 | 0.99 |
 
 ### Note:
 - This g2p model is intended to be used on OOVs with average length (3-15), use the lexicon dictionary for other words.

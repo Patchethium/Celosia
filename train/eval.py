@@ -4,7 +4,7 @@ from train import PhDataset, G2P
 from omegaconf import OmegaConf
 from tqdm.auto import tqdm
 import argparse
-from torch.utils.data import DataLoader, random_split, RandomSampler
+from torch.utils.data import random_split
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

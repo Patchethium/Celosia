@@ -42,14 +42,14 @@ class PhDataset(Dataset):
                 [conf.sos_idx] + [phs[p] for p in phoneme.split(" ")] + [conf.eos_idx]
             )
 
-            self.data.append((word_t.to(DEVICE), ph_t.to(DEVICE)))
+            self.data.append((word_t, ph_t))
             # self.data.append((word, phoneme))
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index) -> tuple[str, str]:
-        return self.data[index]
+        return [t.to(DEVICE) for t in self.data[index]]
 
 
 def collate_fn(batch: list[tuple[Tensor, Tensor]]):

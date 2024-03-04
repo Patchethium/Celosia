@@ -11,7 +11,7 @@ eos_idx: 2
 
 batch_size: 512
 tf_ratio: 0.5
-epochs: 15
+epochs: 30
 lr: 0.002
 lr_decay: 0.9
 

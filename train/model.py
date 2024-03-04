@@ -88,7 +88,7 @@ class G2P(nn.Module):
 
         res = torch.empty([B, L_PH, self.d_phoneme]).to(device)
         attn = torch.empty([B, L_PH, L_TEXT]).to(device)
-        attn_slice, attn_o = self.attn(h.transpose(0, 1), k, v)
+        attn_slice, attn_o = self.attn(self.w_q(h.transpose(0, 1)), k, v)
         o = tgt[:, 0].unsqueeze(1).unsqueeze(1) #[B,1,1]
 
         for t in range(L_PH):
@@ -99,7 +99,7 @@ class G2P(nn.Module):
             else:
                 dec_i = torch.argmax(o, dim=-1)  # [B, 1, N]
             o, x, h = self.dec.forward(dec_i, attn_o, h)
-            attn_slice, attn_o = self.attn(x, k, v)
+            attn_slice, attn_o = self.attn(self.w_q(x), k, v)
             res[:, t, :] = o.squeeze(1)
 
         return attn, res
