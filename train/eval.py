@@ -6,7 +6,6 @@ from tqdm.auto import tqdm
 import argparse
 from torch.utils.data import random_split
 
-
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def main(lang: str, checkpoint: str):
@@ -16,9 +15,9 @@ def main(lang: str, checkpoint: str):
     ds = PhDataset(f"./data/{lang}.txt", conf)
     _train_ds, eval_ds = random_split(ds, [0.99, 0.01])
     model = G2P(
+        conf.d_model,
         conf.d_special + conf.d_alphabet,
         conf.d_special + conf.d_phoneme,
-        conf.d_model,
         0.0,
     )
     model.to(DEVICE)

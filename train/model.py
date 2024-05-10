@@ -1,105 +1,104 @@
-"""
-Simple s2s gru with attention 
-"""
-
-import math
-from random import random
-
 import torch
-import torch.nn.functional as F
-from torch import Tensor, nn
-
-
-class Encoder(nn.Module):
-    def __init__(self, d_alphabet: int, d_model: int):
-        super(Encoder, self).__init__()
-        self.emb = nn.Embedding(d_alphabet, d_model)
-        self.rnn = nn.GRU(d_model, d_model, bidirectional=True, batch_first=True)
-        self.h_post = nn.Linear(2 * d_model, d_model)
-        self.dropout = nn.Dropout(p=0.3)
-
-    def forward(self, x: Tensor):
-        emb = self.dropout(self.emb(x))
-        x, h = self.rnn(emb)
-        h = F.tanh(
-            self.h_post(torch.cat([h[-2, :, :], h[-1, :, :]], dim=-1))
-        ).unsqueeze(0)
-        return x, h
+from torch import nn, Tensor
+from torch.nn import functional as F
 
 
 class Attention(nn.Module):
-    """
-    Scaled dot product attention
-    """
     def __init__(self, d_model: int) -> None:
         super(Attention, self).__init__()
-        self.scale = 1 / math.sqrt(d_model)
-        self.dropout = nn.Dropout(p=0.3)
+        self.wq = nn.Linear(d_model, d_model)
+        self.wk = nn.Linear(d_model, d_model)
+        self.wv = nn.Linear(d_model, d_model)
+        self.wo = nn.Linear(d_model, d_model)
+        self.dropout = nn.Dropout(0.1)
+        self.scale = d_model ** -0.5
 
-    def forward(self, q, k, v):
-        attn = F.softmax(q @ k.transpose(1, 2) * self.scale, dim=-1)
+    def forward(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
+        q = self.wq(q)
+        k = self.wk(k)
+        v = self.wv(v)
+
+        attn = torch.matmul(q, k.transpose(-2, -1)) * self.scale
         attn = self.dropout(attn)
-        o = attn @ v
-        return attn, o
-
-
-class Decoder(nn.Module):
-    def __init__(self, d_ph: int, d_model: int):
-        super(Decoder, self).__init__()
-        self.emb = nn.Embedding(d_ph, d_model)
-        self.rnn = nn.GRU(2 * d_model, d_model, bidirectional=False, batch_first=True)
-        self.post = nn.Linear(d_model, d_ph)
-        self.dropout = nn.Dropout(p=0.3)
-
-    def forward(self, x: Tensor, attn_o: Tensor, h: Tensor):
-        emb = self.dropout(self.emb(x))
-        dec_i = torch.cat([emb, attn_o], dim=-1)
-        x, h = self.rnn(dec_i, h)
-        o = self.post(x)
-        return o, x, h
-
+        attn = F.softmax(attn, dim=-1)
+        return self.wo(torch.matmul(attn, v)), attn
 
 class G2P(nn.Module):
-    def __init__(self, d_alphabet: int, d_phoneme: int, d_model: int, tf_ratio: float):
+    def __init__(self, d_model: int, d_src: int, d_tgt: int, tf_ratio: float) -> None:
         super(G2P, self).__init__()
-        self.d_alphabet = d_alphabet
-        self.d_phoneme = d_phoneme
-        self.d_model = d_model
+        # encoder
+        self.enc_emb = nn.Embedding(d_src, d_model)
+        self.enc_rnn = nn.LSTM(d_model, d_model, batch_first=True, bidirectional=True)
+        self.c_post = nn.Linear(2 * d_model, d_model)
+        self.h_post = nn.Linear(2 * d_model, d_model)
+        self.enc_post = nn.Linear(2 * d_model, d_model)
+
+        # decoder
+        self.dec_emb = nn.Embedding(d_tgt, d_model)
+        self.dec_rnn = nn.LSTM(2 * d_model, d_model, batch_first=True)
+        self.dec_post = nn.Linear(d_model, d_tgt)
+
+        # attention
+        self.attention = Attention(d_model)
+        self.dropout = nn.Dropout(0.1)
+
         self.tf_ratio = tf_ratio
 
-        self.enc = Encoder(d_alphabet, d_model)
-        self.attn = Attention(d_model)
-        self.dec = Decoder(d_phoneme, d_model)
+        self.d_tgt = d_tgt
 
-        self.w_q = nn.Linear(d_model, d_model)
-        self.w_k = nn.Linear(2 * d_model, d_model)
-        self.w_v = nn.Linear(2 * d_model, d_model)
 
-    def forward(self, text: Tensor, tgt: Tensor):
-        device = self.enc.emb.weight.device  # a trick to get the device on the fly
-        B = text.shape[0]
-        L_TEXT = text.shape[1]
-        L_PH = tgt.shape[1]
+    def forward(self, src: Tensor, tgt: Tensor) -> tuple[Tensor, Tensor]:
+        """
+        src: [B,T_src]
+        tgt: [B,T_tgt]
+        """
+        B, T_src = src.size()
+        B, T_tgt = tgt.size()
+        # encoder
+        enc_emb = self.enc_emb(src)
+        enc_emb = self.dropout(enc_emb)
+        enc_out, (h, c) = self.enc_rnn(enc_emb)
+        enc_out = self.enc_post(enc_out) # 2N -> N
+        h = torch.cat([h[0,:,:], h[1,:,:]], dim=-1)
+        h = torch.tanh(self.h_post(h)).unsqueeze(0)
+        c = torch.cat([c[0,:,:], c[1,:,:]], dim=-1)
+        c = torch.tanh(self.c_post(c)).unsqueeze(0)
 
-        enc_o, h = self.enc(text)
-        # pre-comute k and v for performance
-        k = self.w_k(enc_o)
-        v = self.w_v(enc_o)
+        # tf = torch.rand(1).item() < self.tf_ratio
+        tf = self.training and torch.rand(1).item() < self.tf_ratio
+        dec_emb = self.dec_emb(tgt)
+        dec_emb = self.dropout(dec_emb)
 
-        res = torch.empty([B, L_PH, self.d_phoneme]).to(device)
-        attn = torch.empty([B, L_PH, L_TEXT]).to(device)
-        attn_slice, attn_o = self.attn(self.w_q(h.transpose(0, 1)), k, v)
-        o = tgt[:, 0].unsqueeze(1).unsqueeze(1) #[B,1,1]
+        if tf:
+            # if teacher forcing, we calculate the attention all at once
+            attn, score = self.attention(dec_emb, enc_out, enc_out)
+            dec_in = torch.cat([dec_emb, attn], dim=-1)
+            dec_out, _ = self.dec_rnn(dec_in, (h, c))
+            out = self.dec_post(dec_out)
+            return score, out
+        else:
+            # if not, we do it one by one
+            res = torch.empty(B, T_tgt, self.d_tgt)
+            attn_res = torch.empty(B, T_tgt, T_src)
+            prev_emb = self.dec_emb(tgt[:,0]).unsqueeze(1) # [B,1,d_tgt]
+            for i in range(T_tgt):
+                attn, score = self.attention(prev_emb, enc_out, enc_out)
+                dec_in = torch.cat([prev_emb, attn], dim=-1)
+                dec_out, (h, c) = self.dec_rnn(dec_in, (h, c))
+                out = self.dec_post(dec_out)
+                prev_emb = self.dec_emb(out.argmax(dim=-1))
+                res[:,i,:] = out.squeeze(1)
+                attn_res[:,i,:] = score.squeeze(1)
+            return attn_res, res
 
-        for t in range(L_PH):
-            attn[:, t, :] = attn_slice.squeeze(1)
-            # teacher forcing
-            if self.training and random() < self.tf_ratio:
-                dec_i = tgt[:, t].unsqueeze(1)
-            else:
-                dec_i = torch.argmax(o, dim=-1)  # [B, 1, N]
-            o, x, h = self.dec.forward(dec_i, attn_o, h)
-            attn_slice, attn_o = self.attn(self.w_q(x), k, v)
-            res[:, t, :] = o.squeeze(1)
 
-        return attn, res
+# simple test code
+if __name__ == "__main__":
+    model = G2P(128, 100, 100, 0.0)
+    src = torch.randint(0, 100, (32, 10))
+    tgt = torch.randint(0, 100, (32, 10))
+    out = model(src, tgt)
+    print(out.size())
+    model.tf_ratio = 1.0
+    out = model(src, tgt)
+    print(out.size())
