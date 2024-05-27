@@ -79,8 +79,9 @@ def train(lang: str):
     d_alphabet = CONF.d_special + CONF.d_alphabet
     d_phoneme = CONF.d_special + CONF.d_phoneme
 
-    ds = PhDataset(f"./data/{lang}.txt", CONF)
-    train_ds, val_ds, test_ds = random_split(ds, [0.9, 0.09, 0.01])
+    train_ds = PhDataset(f"./data/{lang}-train.txt", CONF)
+    val_ds = PhDataset(f"./data/{lang}-valid.txt", CONF)
+    test_ds = PhDataset(f"./data/{lang}-test.txt", CONF)
     train_dl = DataLoader(
         train_ds, batch_size=CONF.batch_size, shuffle=True, collate_fn=collate_fn
     )

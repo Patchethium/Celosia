@@ -1,21 +1,51 @@
 import argparse
 import os
 from string import ascii_letters
+import random
 
 
 def main(lang):
     match lang:
         case "en":
             english()
-            return
         case "fr":
             prosodylab("fr")
-            return
         case "de":
             prosodylab("de")
-            return
         case _:
             print(f"Language code {lang} is not supported. Should be one of these: [`en`, `fr`, `de`]")
+    # divide them into train and validation
+    # train: 90%, validation: 7.5%, test: 2.5%
+    # save them into `data/{lang}-train.txt` and `data/{lang}-valid.txt`
+    o_train = f"./data/{lang}-train.txt"
+    o_valid = f"./data/{lang}-valid.txt"
+    o_test = f"./data/{lang}-test.txt"
+    f = open(f"./data/{lang}.txt")
+    lines = f.readlines()
+    f.close()
+    train = []
+    valid = []
+    test = []
+    length = len(lines)
+    while len(valid) < length / 100 * 7.5:
+        idx = random.randint(0, len(lines) - 1)
+        valid.append(lines.pop(idx))
+    while len(test) < length / 100 * 2.5:
+        idx = random.randint(0, len(lines) - 1)
+        test.append(lines.pop(idx)) 
+    train = lines
+    print(f"Train: {len(train)}\nValid: {len(valid)}\nTest: {len(test)}")
+    f = open(o_train, "w")
+    f.writelines(train)
+    f.close()
+    f = open(o_valid, "w")
+    f.writelines(valid)
+    f.close()
+    f = open(o_test, "w")
+    f.writelines(test)
+    f.close()
+    # delete the original file
+    os.remove(f"./data/{lang}.txt")
 
 
 def english():
