@@ -170,7 +170,7 @@ def train(lang: str, device: str):
                 )
 
                 model.train()
-            torch.save(model.state_dict(), f"./ckpt/{lang}-ckpt-epoch-{e+1}.pth")
+            torch.save(model.state_dict(), f"./ckpt/{lang}-epoch-{e+1}.pth")
             scheduler.step()
 
 

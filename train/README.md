@@ -112,7 +112,7 @@ We randomly sample 10% from the dataset to calculate the bleu score.
 python eval.py {lang} {checkpoint_path}
 
 # example
-python eval.py en ./ckpt/en-ckpt-epoch-5.pth
+python eval.py en ./ckpt/en-epoch-5.pth
 ```
 
 ## Checkpoints
