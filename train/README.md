@@ -1,8 +1,10 @@
-# Training with PyTorch
+# Training G2P Models with PyTorch
 
 This directory contains the code for training a g2p model in English, French and German.
 
-It's just a seq2seq gru with attention, don't wanna make things too complex.
+It's just a seq2seq LSTM with attention, don't wanna make things too complicated.
+
+May change to FST (Finite State Transducer) in the future.
 
 ## Environment
 
@@ -117,13 +119,12 @@ python eval.py en ./ckpt/en-ckpt-epoch-5.pth
 
 We provide pretrained weights in binary form.
 
-| lang | code |epochs | bleu score |
+| lang | code | epochs | PER |
 | --- | --- | --- | --- |
-| English | en | 30 | 0.80 |
-| French | fr | 30 | 0.99 |
-| German | de | 30 | 0.99 |
+| English | en | 30 | 10.15% |
+| French | fr | 30 | 0.88% |
+| German | de | 30 | 1.01% |
 
 ### Note:
-- This g2p model is intended to be used on OOVs with average length (3-15), use the lexicon dictionary for other words.
-- This model is uncased, which means it won't see a difference between `english` and `English`.
-- This model makes attention failure, Anthelia combines repeated phonemes to affiliate it. Help in improving robustness is welcomed.
+- This g2p model is intended to be used on OOVs with average length (>3), please use lexicon dictionary for 1~2 character words.
+- This model is uncased, which means it doesn't see a difference between `english` and `English`.

@@ -11,9 +11,10 @@ from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.tensorboard.writer import SummaryWriter
 
+from datetime import datetime
 from model import G2P
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = None
 CONF = None
 
 if not os.path.exists("./ckpt"):
@@ -21,11 +22,13 @@ if not os.path.exists("./ckpt"):
 
 
 class PhDataset(Dataset):
-    def __init__(self, dict_path: str, conf) -> None:
+    def __init__(self, dict_path: str, conf, device) -> None:
         super().__init__()
         alphabets = conf.specials + conf.alphabets
         phonemes = conf.specials + conf.phonemes
         self.data = []
+        self.cached = {}
+        self.device = device
         f = open(dict_path, "r")
         lines = f.readlines()
         als = {c: i for i, c in enumerate(alphabets)}
@@ -49,7 +52,15 @@ class PhDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, index) -> tuple[str, str]:
-        return [t.to(DEVICE) for t in self.data[index]]
+        # cache the tensor on the device
+        cached = self.cached.get(index)
+        if cached is not None:
+            return cached
+        else:
+            t = self.data[index]
+            t = (t[0].to(self.device), t[1].to(self.device))
+            self.cached[index] = t
+            return t
 
 
 def collate_fn(batch: list[tuple[Tensor, Tensor]]):
@@ -66,9 +77,17 @@ def collate_fn(batch: list[tuple[Tensor, Tensor]]):
     return word_batch, ph_batch
 
 
-def train(lang: str):
+def train(lang: str, device: str):
     global CONF
+    global DEVICE
+
     CONF = OmegaConf.load(f"./config/{lang}.yaml")
+    try:
+        if torch.cuda.is_available():
+            DEVICE = torch.device(f"cuda:{device}")
+    except Exception as e:
+        print(e)
+        DEVICE = torch.device("cpu")
 
     torch.manual_seed(CONF.seed)
 
@@ -79,20 +98,20 @@ def train(lang: str):
     d_alphabet = CONF.d_special + CONF.d_alphabet
     d_phoneme = CONF.d_special + CONF.d_phoneme
 
-    train_ds = PhDataset(f"./data/{lang}-train.txt", CONF)
-    val_ds = PhDataset(f"./data/{lang}-valid.txt", CONF)
-    test_ds = PhDataset(f"./data/{lang}-test.txt", CONF)
+    train_ds = PhDataset(f"./data/{lang}-train.txt", CONF, DEVICE)
+    val_ds = PhDataset(f"./data/{lang}-valid.txt", CONF, DEVICE)
+    test_ds = PhDataset(f"./data/{lang}-test.txt", CONF, DEVICE)
     train_dl = DataLoader(
         train_ds, batch_size=CONF.batch_size, shuffle=True, collate_fn=collate_fn
     )
     val_dl = DataLoader(
         val_ds, batch_size=CONF.batch_size, shuffle=False, collate_fn=collate_fn
     )
-    model = G2P(d_model, d_alphabet, d_phoneme, CONF.tf_ratio).to(DEVICE)
+    model = G2P(d_model, d_alphabet, d_phoneme, CONF.n_layers, CONF.tf_ratio).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=CONF.lr)
     scheduler = ExponentialLR(optimizer, gamma=CONF.lr_decay)
-    loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx)
-    writer = SummaryWriter()
+    loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx).to(DEVICE)
+    writer = SummaryWriter(f"./logs/{lang.upper()}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
     global_step = 0
     padding = (
         torch.LongTensor([CONF.pad_idx]).repeat(CONF.batch_size).unsqueeze(1).to(DEVICE)
@@ -100,7 +119,7 @@ def train(lang: str):
     for e in range(CONF.epochs):
         for w, p in train_dl:
             optimizer.zero_grad()
-            _, o = model.forward(w, p)
+            o = model.forward(w, p)
             # shift the label 1 token left so that the decoder can learn next token prediction
             p = p[:, 1:]
             p = torch.cat([p, padding[: p.shape[0], :]], dim=-1)
@@ -118,7 +137,7 @@ def train(lang: str):
                 val_loss = 0
                 val_batches = 0
                 for w, p in val_dl:
-                    _, o = model.forward(w, p)
+                    o = model.forward(w, p)
                     # same reason as in training
                     o = o[:, :-1, :]
                     p = p[:, 1:]
@@ -135,13 +154,13 @@ def train(lang: str):
                 )
                 test_case = test_ds[randint(0, len(test_ds))]
                 w, p = test_case
-                attn, o = model.forward(w.unsqueeze(0), p.unsqueeze(0))  # [1,S,N]
-                writer.add_image(
-                    "Attention Matrix",
-                    attn.squeeze(),
-                    global_step=global_step,
-                    dataformats="HW",
-                )
+                o = model.forward(w.unsqueeze(0), p.unsqueeze(0))
+                # writer.add_image(
+                #     "Attention Matrix",
+                #     attn.squeeze(),
+                #     global_step=global_step,
+                #     dataformats="HW",
+                # )
                 o = torch.argmax(o, dim=-1).squeeze()
                 word = "".join([alphabets[int(c)] for c in w])
                 tgt_phoneme = " ".join([phonemes[int(c)] for c in p])
@@ -158,5 +177,6 @@ def train(lang: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("lang", default="en")
+    parser.add_argument("-d", "--device", default="0", required=False)
     args = parser.parse_args()
-    train(args.lang)
+    train(args.lang, args.device)

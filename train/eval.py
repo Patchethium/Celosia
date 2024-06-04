@@ -1,6 +1,7 @@
 import torch
 from torcheval.metrics import WordErrorRate
-from train import PhDataset, G2P
+from train import PhDataset
+from model import G2P
 from omegaconf import OmegaConf
 from tqdm.auto import tqdm
 import argparse
@@ -12,11 +13,12 @@ def main(lang: str, checkpoint: str):
     conf = OmegaConf.load(f"./config/{lang}.yaml")
     alphabets = conf.specials + conf.alphabets
     phonemes = conf.specials + conf.phonemes
-    eval_ds = PhDataset(f"./data/{lang}-test.txt", conf)
+    eval_ds = PhDataset(f"./data/{lang}-test.txt", conf, DEVICE)
     model = G2P(
         conf.d_model,
         conf.d_special + conf.d_alphabet,
         conf.d_special + conf.d_phoneme,
+        conf.n_layers,
         0.0,
     )
     model.to(DEVICE)
@@ -24,14 +26,14 @@ def main(lang: str, checkpoint: str):
     model.eval()
     wer = WordErrorRate()
     for w, p in tqdm(eval_ds):
-        _, ph = model.forward(w.unsqueeze(0), p.unsqueeze(0))
+        ph = model.forward(w.unsqueeze(0), p.unsqueeze(0))
         ph = torch.argmax(ph, dim=-1)
         predict = " ".join([phonemes[int(i)] for i in ph.squeeze()[:-2]])
         ref = " ".join([phonemes[int(i)] for i in p.squeeze()[1:-1]])
         # print(predict, ref)
         wer.update([predict], [ref])
 
-    print(f"WER: {wer.compute()}")
+    print(f"PER: {wer.compute()}") # WER calculated on phonemes is called PER
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

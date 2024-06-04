@@ -1,10 +1,11 @@
 import argparse
 import os
-from string import ascii_letters
 import random
+from string import ascii_letters
 
 
-def main(lang):
+def main(lang, seed):
+    random.seed(seed)  # default to 3407, for reproducibility
     match lang:
         case "en":
             english()
@@ -13,7 +14,9 @@ def main(lang):
         case "de":
             prosodylab("de")
         case _:
-            print(f"Language code {lang} is not supported. Should be one of these: [`en`, `fr`, `de`]")
+            print(
+                f"Language code {lang} is not supported. Should be one of these: [`en`, `fr`, `de`]"
+            )
     # divide them into train and validation
     # train: 90%, validation: 7.5%, test: 2.5%
     # save them into `data/{lang}-train.txt` and `data/{lang}-valid.txt`
@@ -32,7 +35,7 @@ def main(lang):
         valid.append(lines.pop(idx))
     while len(test) < length / 100 * 2.5:
         idx = random.randint(0, len(lines) - 1)
-        test.append(lines.pop(idx)) 
+        test.append(lines.pop(idx))
     train = lines
     print(f"Train: {len(train)}\nValid: {len(valid)}\nTest: {len(test)}")
     f = open(o_train, "w")
@@ -68,22 +71,24 @@ def english():
             line = r[: i + 1]
         filtered = False
         word = line.split("  ")[0]
+        phoneme = line.split("  ")[1]
+        # first remove the pos tagging surrended by `()`
+        if "(" in word:
+            word = word.split("(")[0]
         for char in word:
             # removes the only entry `threnos` that uses `-`
             if word == "threnos":
                 filtered = True
                 break
             # removes single character words
-            if len(word) < 2:
+            if len(word) < 3:
                 filtered = True
                 break
             # removes non-ascii words
-            # removes alternative pronounce
             if char not in ascii_letters + "'":
                 filtered = True
-                break
         if not filtered:
-            res.append(line + "\n")
+            res.append(word + "  " + phoneme + "\n")
     o_file = open("./data/en.txt", "w")
 
     o_file.writelines(res)
@@ -129,5 +134,6 @@ def prosodylab(lang: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("lang", default="en")
+    parser.add_argument("--seed", type=int, default=3407, required=False)
     args = parser.parse_args()
-    main(args.lang)
+    main(args.lang, args.seed)

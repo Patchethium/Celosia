@@ -1,21 +1,20 @@
 # French is much easier than English, gets bleu 0.97 in 5 epochs
 seed: 3407
 
-d_model: 128
-d_alphabet: 45 # 26 + 1 for `'`
+d_model: 256
+d_alphabet: 45
 d_phoneme: 31
 d_special: 3
 pad_idx: 0
 sos_idx: 1
 eos_idx: 2
 
-batch_size: 512
+batch_size: 256
 tf_ratio: 0.5
-epochs: 10
-lr: 0.002
+epochs: 30
+n_layers: 2
+lr: 3.0e-3
 lr_decay: 0.9
-
-dropout: 0.3
 
 alphabets:
   [
