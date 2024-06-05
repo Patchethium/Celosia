@@ -123,9 +123,9 @@ We provide pretrained weights in binary form.
 
 | lang | code | epochs | PER |
 | --- | --- | --- | --- |
-| English | en | 30 | 10.03% |
-| French | fr | 20 | 0.81% |
-| German | de | 20 | 0.23% |
+| English | en | 30 | 10.36% |
+| French | fr | 20 | 1.08% |
+| German | de | 20 | 0.48% |
 
 ### Note:
 - This g2p model is intended to be used on OOVs with average length (>3), please use lexicon dictionary for 1~2 character words.
