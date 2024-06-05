@@ -1,4 +1,4 @@
-tqdm
-torch
-torchtext
-omegaconf
+omegaconf==2.3.0
+torch==2.2.1
+torcheval==0.0.7
+tqdm==4.66.2
