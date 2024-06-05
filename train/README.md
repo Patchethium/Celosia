@@ -2,9 +2,11 @@
 
 This directory contains the code for training a g2p model in English, French and German.
 
-It's just a seq2seq LSTM with attention, don't wanna make things too complicated.
+It's a simple seq2seq LSTM, any attempts on improving the model structure failed. Add below the time you wasted on it if you tried the same.
 
-May change to FST (Finite State Transducer) in the future.
+> 10 hours
+
+May change from NN to FST (Finite State Transducer) in the future.
 
 ## Environment
 
@@ -106,7 +108,7 @@ python export.py ./ckpt/en-ckpt-epoch-5.pth ./ckpt/en.bin
 
 ## Evaluate
 
-We randomly sample 10% from the dataset to calculate the bleu score.
+We randomly sample 2.5% from the dataset as the test set to calculate the WER (Shown below as PER for Phoneme Error Rate).
 
 ```bash
 python eval.py {lang} {checkpoint_path}
@@ -121,9 +123,9 @@ We provide pretrained weights in binary form.
 
 | lang | code | epochs | PER |
 | --- | --- | --- | --- |
-| English | en | 30 | 10.15% |
-| French | fr | 30 | 0.88% |
-| German | de | 30 | 1.01% |
+| English | en | 30 | 10.03% |
+| French | fr | 20 | 0.81% |
+| German | de | 20 | 1.04% |
 
 ### Note:
 - This g2p model is intended to be used on OOVs with average length (>3), please use lexicon dictionary for 1~2 character words.
