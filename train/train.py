@@ -8,8 +8,10 @@ from torch import Tensor, nn, optim
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.nn.utils.rnn import pad_sequence
 from torch.optim.lr_scheduler import ExponentialLR
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard.writer import SummaryWriter
+
+from torcheval.metrics import WordErrorRate as WER
 
 from datetime import datetime
 from model import G2P
@@ -155,12 +157,6 @@ def train(lang: str, device: str):
                 test_case = test_ds[randint(0, len(test_ds))]
                 w, p = test_case
                 o = model.forward(w.unsqueeze(0), p.unsqueeze(0))
-                # writer.add_image(
-                #     "Attention Matrix",
-                #     attn.squeeze(),
-                #     global_step=global_step,
-                #     dataformats="HW",
-                # )
                 o = torch.argmax(o, dim=-1).squeeze()
                 word = "".join([alphabets[int(c)] for c in w])
                 tgt_phoneme = " ".join([phonemes[int(c)] for c in p])
@@ -169,6 +165,16 @@ def train(lang: str, device: str):
                     f"Test result:\n\t Source: {word},\n\t Target: {tgt_phoneme},\n\t Pred: {pred_phoenme}"
                 )
 
+                # WER
+                wer = WER()
+                for i in range(min(500, len(test_ds))):
+                    w, p = test_ds[i]
+                    o = model.forward(w.unsqueeze(0), p.unsqueeze(0))
+                    o = torch.argmax(o, dim=-1).squeeze()
+                    predict = " ".join([phonemes[int(i)] for i in o[:-2]])
+                    ref = " ".join([phonemes[int(i)] for i in p[1:-1]])
+                    wer.update(predict, ref)
+                writer.add_scalar("Test WER", wer.compute(), global_step=global_step)
                 model.train()
             torch.save(model.state_dict(), f"./ckpt/{lang}-epoch-{e+1}.pth")
             scheduler.step()
