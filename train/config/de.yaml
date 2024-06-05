@@ -13,7 +13,7 @@ eos_idx: 2
 
 batch_size: 256 # german dataset is larger
 tf_ratio: 0.5
-epochs: 30
+epochs: 20
 n_layers: 2
 lr: 3.0e-3 # same reason as above
 lr_decay: 0.9
