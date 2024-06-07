@@ -44,21 +44,13 @@ Thanks for the orthography, French & German generally don't have the disambiguat
 
 If you only use a subset of these languages, you can prune unused languages for the binary size. Some complex languages like Japanese takes some huge size.
 
-## Motivation
-
-We have alternatives like `espeak-ng`, but they lack some essential features, such as pitch accent prediction in Japanese and homograph disambiguation in Chinese. When actually building a production-ready TTS application like `Anthe`, we have to build our wheel, in which we design different approaches for each language. This results in much less flexibility but also better accuracy at an acceptable size increase.
-
 ## License
 
 `Celosia` is dual-licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0) or the [MIT license](http://opensource.org/licenses/MIT), at your option. This file may not be copied, modified, or distributed except according to those terms.
 
 ## About the name
 
-`Celosia` is an open source component of `Anthe` the TTS application, which is still under development.
-
-The name `Anthe` is derived from Saturn XLIX, a very small natural satellite of Saturn. It's named after one of the Alkyonides, the name means flowery.
-
-Therefore, we use flower names for each component of `Anthe`. Celosia<sup>[wikipedia](https://en.wikipedia.org/wiki/Celosia)</sup> is a small genus of edible and ornamental plants in the amaranth family, Amaranthaceae
+Celosia<sup>[wikipedia](https://en.wikipedia.org/wiki/Celosia)</sup> is a small genus of edible and ornamental plants in the amaranth family, Amaranthaceae
 
 <p><a href="https://commons.wikimedia.org/wiki/File:Celosia.JPG#/media/File:Celosia.JPG"><img src="https://upload.wikimedia.org/wikipedia/commons/5/54/Celosia.JPG" alt="Celosia.JPG"></a><br>By <a href="//commons.wikimedia.org/wiki/User:Hariya1234" title="User:Hariya1234">Hariya1234</a> - <span class="int-own-work" lang="en">Own work</span>, <a href="https://creativecommons.org/licenses/by-sa/3.0" title="Creative Commons Attribution-Share Alike 3.0">CC BY-SA 3.0</a>, <a href="https://commons.wikimedia.org/w/index.php?curid=15904310">Link</a></p>
 
