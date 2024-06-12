@@ -1,10 +1,8 @@
-use anthelia::en::{
-  model::{Embedding, Encoder, GRUCell, Linear, GRU},
-  tagger::PerceptronTagger,
-};
+use anthelia::en::tagger::PerceptronTagger;
+use criterion::black_box;
 use criterion::{criterion_group, criterion_main, Criterion};
-use ndarray::{Array, Array1, Array2};
-use ndarray_rand::{rand_distr::Uniform, RandomExt};
+
+use anthelia::g2p::model::G2P;
 
 fn tagger_benchmark(c: &mut Criterion) {
   const PATH: &str = "./data/averaged_perceptron_tagger.pickle";
@@ -19,57 +17,24 @@ fn tagger_benchmark(c: &mut Criterion) {
     b.iter(|| tagger.tag(tokens.clone(), false, true))
   });
 }
-fn get_gru(h_dim: usize) -> GRU {
-  let w_ih: Array2<f32> = Array::random((3 * h_dim, h_dim), Uniform::new(0., 10.));
-  let w_hh: Array2<f32> = Array::random((3 * h_dim, h_dim), Uniform::new(0., 10.));
 
-  let b_ih: Array1<f32> = Array::random((3 * h_dim,), Uniform::new(0., 10.));
-  let b_hh: Array1<f32> = Array::random((3 * h_dim,), Uniform::new(0., 10.));
-
-  let linear_ih = Linear::new(w_ih, b_ih);
-  let linear_hh = Linear::new(w_hh, b_hh);
-
-  let gru_cell = GRUCell::new(linear_ih, linear_hh);
-
-  GRU::new(gru_cell, true)
+fn bench_load_g2p(c: &mut Criterion) {
+  let path = "./assets/en.pickle";
+  c.bench_function("bench_load_g2p", |b| {
+    b.iter(|| G2P::load(path, Default::default()).unwrap())
+  });
 }
 
-fn get_linear(i_dim: usize, o_dim: usize) -> Linear {
-  let weight: Array2<f32> = Array::random((o_dim, i_dim), Uniform::new(0., 10.));
-  let bias: Array1<f32> = Array::random((o_dim,), Uniform::new(0., 10.));
-  Linear::new(weight, bias)
+fn bench_g2p(c: &mut Criterion) {
+  let path = "./assets/en.pickle";
+  let g2p = G2P::load(path, Default::default()).unwrap();
+  let word = "gutenberg";
+  c.bench_function("bench_g2p", |b| {
+    b.iter(|| {
+      black_box(g2p.inference(word).unwrap());
+    })
+  });
 }
 
-fn gru_benchmark(c: &mut Criterion) {
-  let h_dim = 256;
-  let seq_dim = 12;
-
-  let gru = get_gru(h_dim);
-
-  let x: Array2<f32> = Array::random((seq_dim, h_dim), Uniform::new(0., 10.));
-  let h = Array1::zeros(h_dim);
-
-  c.bench_function("bench_gru", |b| b.iter(|| gru.forward(&x, &h)));
-}
-
-fn encoder_benchmark(c: &mut Criterion) {
-  let h_dim = 256;
-  let seq_dim = 12;
-  let dist = Uniform::new(0., 10.);
-  let dist_usize = Uniform::<usize>::new(0, 10);
-
-  let gru = get_gru(h_dim);
-  let gru_rev = get_gru(h_dim);
-
-  let emb_weight = Array::random((h_dim, 10), dist);
-  let emb = Embedding::new(emb_weight);
-
-  let mut data = Array::random((seq_dim,), dist_usize);
-
-  let encoder = Encoder::new(emb, gru, gru_rev, get_linear(2 * h_dim, h_dim));
-
-  c.bench_function("bench_encoder", |b| b.iter(|| encoder.forward(&mut data)));
-}
-
-criterion_group!(benches, tagger_benchmark, gru_benchmark, encoder_benchmark);
+criterion_group!(benches, tagger_benchmark, bench_load_g2p, bench_g2p);
 criterion_main!(benches);

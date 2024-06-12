@@ -12,8 +12,10 @@ serde = "1.0"
 anyhow = "1.0.75"
 ordered-float = "4.1.1"
 regex = "1.10"
-ndarray = { version = "0.15.6", features = ["rayon"] }
-ndarray-stats = "0.5.1"
+rayon = "1.10.0"
+rand = "0.8.5"
+bimap = "0.6.3"
+half = "2.4.1"
 
 [dev-dependencies]
 ndarray-rand = "0.14.0"
@@ -22,3 +24,12 @@ criterion = { version = "0.5.0", features = ["html_reports"] }
 [[bench]]
 name = "bench"
 harness = false
+
+[lib]
+path = "src/lib.rs"
+
+[profile.release]
+strip = true
+opt-level = "z"
+panic = "abort"
+codegen-units = 1

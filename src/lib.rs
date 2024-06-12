@@ -1,19 +1,27 @@
 pub mod en;
+pub mod g2p;
+
+pub fn get_g2p(lang: g2p::constant::LANG) -> g2p::model::G2P {
+  let path = match lang {
+    g2p::constant::LANG::EN => "./assets/en.bin",
+    g2p::constant::LANG::FR => "./assets/fr.bin",
+    g2p::constant::LANG::DE => "./assets/de.bin",
+  };
+  g2p::model::G2P::load(path, g2p::constant::G2PConfig::new(lang)).unwrap()
+}
 
 #[cfg(test)]
 mod tests {
-  use crate::en::constants::AMEPD_PHONE_SET;
-  use crate::en::model::{Attention, Decoder, Embedding, Encoder, GRUCell, Linear, G2P, GRU};
+  // use crate::en::model::{Attention, Embedding, Encoder, GRUCell, Linear, G2P, GRU};
   use crate::en::tagger::PerceptronTagger;
   use crate::en::tokenizer::naive_split;
-  use ndarray::{Array, Array1, Array2};
-  use ndarray_rand::rand_distr::Uniform;
-  use ndarray_rand::RandomExt;
   use pickle::DeOptions;
   use serde_pickle as pickle;
   use std::collections::{BTreeMap, BTreeSet};
   use std::fs::File;
   use std::io::Read;
+
+  use crate::g2p::model::{G2P, LSTMCell, Linear};
 
   const TEXT: &str = "Printing , in the only sense with which we are at present concerned ,
   differs from most if not from all the arts (and crafts)
@@ -60,108 +68,86 @@ mod tests {
   }
 
   #[test]
-  fn test_gru() {
-    let h_dim = 32;
-    let seq_dim = 126;
-    let dist = Uniform::new(0., 10.);
-
-    let w_ih: Array2<f32> = Array::random((3 * h_dim, h_dim), dist);
-    let w_hh: Array2<f32> = Array::random((3 * h_dim, h_dim), dist);
-
-    let b_ih: Array1<f32> = Array::random((3 * h_dim,), dist);
-    let b_hh: Array1<f32> = Array::random((3 * h_dim,), dist);
-
-    let linear_ih = Linear::new(w_ih, b_ih);
-    let linear_hh = Linear::new(w_hh, b_hh);
-
-    let gru_cell = GRUCell::new(linear_ih, linear_hh);
-
-    let gru = GRU::new(gru_cell, true);
-
-    let h = Array::zeros((h_dim,));
-
-    let x: Array2<f32> = Array::random((seq_dim, h_dim), dist);
-
-    println!("{:?}", gru.forward(&x, &h).0.shape());
+  fn test_linear() {
+    let weight = vec![
+      vec![1., 2., 3.],
+      vec![4., 5., 6.],
+      vec![7., 8., 9.],
+      vec![10., 11., 12.],
+    ]; // 4x3
+    let bias = vec![1., 2., 3., 4.]; // 4
+    let x = vec![1., 2., 3.]; // 3
+    let mut xout = vec![0.; 4]; // 4
+    let linear = Linear::new(weight, bias);
+    linear.forward(&x, &mut xout);
+    println!("{:?}", xout);
   }
 
   #[test]
-  fn test_attn() {
-    let h_dim = 32;
-    let seq_dim = 126;
-    let dist = Uniform::new(0., 10.);
-    let w_k: Array2<f32> = Array::random((2 * h_dim, h_dim), dist);
-    let w_v: Array2<f32> = Array::random((h_dim, 2 * h_dim), dist);
+  fn test_lstm_cell() {
+    let tensor = vec![
+        vec![1., 2., 3., 4.],
+        vec![5., 6., 7., 8.],
+        vec![9., 10., 11., 12.],
+        vec![13., 14., 15., 16.],
+        vec![1., 2., 3., 4.],
+        vec![5., 6., 7., 8.],
+        vec![9., 10., 11., 12.],
+        vec![13., 14., 15., 16.],
+        vec![1., 2., 3., 4.],
+        vec![5., 6., 7., 8.],
+        vec![9., 10., 11., 12.],
+        vec![13., 14., 15., 16.],
+        vec![1., 2., 3., 4.],
+        vec![5., 6., 7., 8.],
+        vec![9., 10., 11., 12.],
+        vec![13., 14., 15., 16.],
+    ];
+    let bias = vec![1., 2., 3., 4., 1., 2., 3., 4., 1., 2., 3., 4., 1., 2., 3., 4.]; // 16
+    let x = vec![1., 2., 3., 4.]; // 4
 
-    let b_k: Array1<f32> = Array::random((2 * h_dim,), dist);
-    let b_v: Array1<f32> = Array::random((h_dim,), dist);
+    let h0 = vec![1., 2., 3., 4.]; // 4
+    let c0 = vec![1., 2., 3., 4.]; // 4
 
-    let attn = Attention::new(Linear::new(w_k, b_k), Linear::new(w_v, b_v));
+    let cell = LSTMCell::new(
+      Linear::new(tensor.clone(), bias.clone()),
+      Linear::new(tensor.clone(), bias.clone()),
+    );
 
-    let enc_o = Array::random((seq_dim, 2 * h_dim), dist);
-    let dec_o = Array::random((h_dim,), dist);
+    let mut hout = vec![0.; 4];
+    let mut cout = vec![0.; 4];
 
-    println!("{:?}", attn.forward(&enc_o, &dec_o).shape())
-  }
+    cell.forward(&x, &h0, &c0, &mut hout, &mut cout);
 
-  fn get_gru_cell(i_dim: usize, h_dim: usize) -> GRUCell {
-    let w_ih: Array2<f32> = Array::random((3 * h_dim, i_dim), Uniform::new(0., 10.));
-    let w_hh: Array2<f32> = Array::random((3 * h_dim, h_dim), Uniform::new(0., 10.));
+    let correct_h = vec![0.9640, 0.9951, 0.9993, 0.9999]; // from PyTorch
+    let correct_c = vec![2., 3., 4., 5.]; // from PyTorch
 
-    let b_ih: Array1<f32> = Array::random((3 * h_dim,), Uniform::new(0., 10.));
-    let b_hh: Array1<f32> = Array::random((3 * h_dim,), Uniform::new(0., 10.));
-
-    let linear_ih = Linear::new(w_ih, b_ih);
-    let linear_hh = Linear::new(w_hh, b_hh);
-
-    let gru_cell = GRUCell::new(linear_ih, linear_hh);
-
-    gru_cell
-  }
-
-  fn get_gru(i_dim: usize, h_dim: usize) -> GRU {
-    let gru_cell = get_gru_cell(i_dim, h_dim);
-
-    GRU::new(gru_cell, true)
-  }
-
-  fn get_linear(i_dim: usize, o_dim: usize) -> Linear {
-    let weight: Array2<f32> = Array::random((o_dim, i_dim), Uniform::new(0., 10.));
-    let bias: Array1<f32> = Array::random((o_dim,), Uniform::new(0., 10.));
-    Linear::new(weight, bias)
+    for i in 0..4 {
+      assert!((hout[i] - correct_h[i]).abs() < 1e-4); // 1e-4 is epsilon
+      assert!((cout[i] - correct_c[i]).abs() < 1e-4);
+    }
   }
 
   #[test]
-  fn test_encoder() {
-    let h_dim = 128;
-    let seq_dim = 12;
-    let dist = Uniform::new(0., 10.);
-    let dist_usize = Uniform::<usize>::new(0, 10);
-
-    let gru = get_gru(h_dim, h_dim);
-    let gru_rev = get_gru(h_dim, h_dim);
-
-    let emb_weight = Array::random((10, h_dim), dist);
-    let emb = Embedding::new(emb_weight);
-
-    let mut data = Array::random((seq_dim,), dist_usize);
-
-    let encoder = Encoder::new(emb, gru, gru_rev, get_linear(2 * h_dim, h_dim));
-    let (opt, h) = encoder.forward(&mut data).unwrap();
-    println!("{:?}, {:?}", opt.shape(), h.shape());
+  fn test_load_g2p() {
+    let path = "./assets/en.pickle";
+    let _g2p = G2P::load(path, Default::default()).unwrap();
   }
-  #[test]
-  fn test_g2p() {
-    let path = "./data/en_rnn.bin";
-    let g2p = G2P::from_file(path).unwrap();
-    let indices: Array1<usize> = Array1::from_vec(vec![1, 7, 4, 12, 22, 28, 2]);
-    let output = g2p.forward(&indices).unwrap();
-    let phoneme: Vec<&str> = output
-      .iter()
-      .map(|i| AMEPD_PHONE_SET[i.clone() as usize])
-      .collect();
-    println!("{:?}", phoneme);
 
-    // println!("{:?}", g2p.attn.k.weight);
+  #[test]
+  fn test_g2p_infer() {
+    let path = "./assets/en.pickle";
+    let g2p = G2P::load(path, Default::default()).unwrap();
+    let word = "gutenberg";
+    let phoneme = g2p.inference(word).unwrap();
+    let answer = vec!["g", "uw1", "t", "ax", "n", "b", "axr", "g"];
+    assert_eq!(phoneme, answer);
+  }
+
+  #[test]
+  fn test_g2p_export() {
+    let path = "./assets/en.bin";
+    let g2p = G2P::load("./assets/en.pickle", Default::default()).unwrap();
+    g2p.export(path).unwrap();
   }
 }
