@@ -16,6 +16,7 @@ rayon = "1.10.0"
 rand = "0.8.5"
 bimap = "0.6.3"
 half = "2.4.1"
+lru = "0.12.3"
 
 [dev-dependencies]
 ndarray-rand = "0.14.0"

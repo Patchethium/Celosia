@@ -1,6 +1,7 @@
 use std::io::Write;
+use std::num::NonZeroUsize;
 use std::{collections::BTreeMap, fs::File};
-
+use lru::LruCache;
 use rayon::prelude::*;
 
 use crate::g2p::constant::SPECIAL_LEN;
@@ -191,6 +192,7 @@ impl Embedding {
 }
 
 pub struct G2P {
+  cache: LruCache<String, Vec<&'static str>>,
   config: G2PConfig,
   enc_emb: Embedding,
   enc_lstm: [LSTMCell; N_LAYER],
@@ -209,6 +211,7 @@ impl G2P {
     post: Linear,
   ) -> Self {
     Self {
+      cache: LruCache::new(NonZeroUsize::new(100).unwrap()),
       config,
       enc_emb,
       enc_lstm,
@@ -360,7 +363,7 @@ impl G2P {
   }
 
   // inference takes 12 ms for word "gutenberg" on a 8 core cpu
-  pub fn inference(&self, word: &str) -> anyhow::Result<Vec<&str>> {
+  pub fn inference(&self, word: &str) -> anyhow::Result<Vec<&'static str>> {
     let mut incidies = word
       .par_chars()
       .map(|c| {
@@ -382,10 +385,20 @@ impl G2P {
     let output = &mut output[1..len - 1];
     // offset
     output.par_iter_mut().for_each(|i| *i -= SPECIAL_LEN);
-    let phoneme: Vec<&str> = output
+    let phoneme: Vec<&'static str> = output
       .iter()
       .map(|i| *self.config.phoneme.get_by_right(&i).unwrap_or(&""))
       .collect();
+    Ok(phoneme)
+  }
+
+  // this is the default function that the user should use
+  pub fn g2p(&mut self, word: &str) -> anyhow::Result<Vec<&str>> {
+    if let Some(phoneme) = self.cache.get(word) {
+      return Ok(phoneme.to_vec());
+    }
+    let phoneme = self.inference(word)?;
+    self.cache.put(word.to_string(), phoneme.clone());
     Ok(phoneme)
   }
 
