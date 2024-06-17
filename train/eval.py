@@ -19,7 +19,9 @@ def main(lang: str, checkpoint: str):
         conf.d_special + conf.d_alphabet,
         conf.d_special + conf.d_phoneme,
         conf.n_layers,
-        0.0,
+        conf.n_heads,
+        conf.d_ffn,
+        conf.dropout
     )
     model.to(DEVICE)
     model.load_state_dict(torch.load(checkpoint, map_location=DEVICE))

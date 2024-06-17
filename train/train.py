@@ -109,7 +109,7 @@ def train(lang: str, device: str):
     val_dl = DataLoader(
         val_ds, batch_size=CONF.batch_size, shuffle=False, collate_fn=collate_fn
     )
-    model = G2P(d_model, d_alphabet, d_phoneme, CONF.n_layers, CONF.tf_ratio).to(DEVICE)
+    model = G2P(d_model, d_alphabet, d_phoneme, CONF.n_layers, CONF.n_heads, CONF.d_ffn, CONF.dropout).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=CONF.lr)
     scheduler = ExponentialLR(optimizer, gamma=CONF.lr_decay)
     loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx).to(DEVICE)
