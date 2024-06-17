@@ -20,6 +20,7 @@ class SinusoidalPositionalEncoding(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self.pe[:, : x.size(1)].detach()
 
+
 class LearnedPositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=512):
         super(LearnedPositionalEncoding, self).__init__()
@@ -212,8 +213,10 @@ class G2P(nn.Module):
         dec = self.decoder(tgt, enc, tgt_mask, cross_mask)
 
         return self.fc(dec)
-    
-    def inference(self, src: Tensor, max_len: int, sos_idx: int, eos_idx: int) -> Tensor:
+
+    def inference(
+        self, src: Tensor, max_len: int, sos_idx: int, eos_idx: int
+    ) -> Tensor:
         src_mask = self.get_src_mask(src, self.pad_idx)
         src_emb = self.src_emb(src)
         src_emb = src_emb + self.enc_pos_emb(src_emb)
@@ -229,10 +232,12 @@ class G2P(nn.Module):
             local_emb = self.tgt_emb(local_context)
             local_emb = local_emb + self.dec_pos_emb(local_emb)
             local_emb = self.dec_pos_norm(local_emb)
-            cross_mask = self.get_cross_mask(src, local_context, self.pad_idx, self.pad_idx)
+            cross_mask = self.get_cross_mask(
+                src, local_context, self.pad_idx, self.pad_idx
+            )
             dec = self.decoder(local_emb, enc, None, cross_mask)
             out = self.fc(dec)[:, -1]
-            logits[:, t-1] = out
+            logits[:, t - 1] = out
             context[:, t] = out.argmax(dim=-1)
             if (context[:, t] == eos_idx).all():
                 break

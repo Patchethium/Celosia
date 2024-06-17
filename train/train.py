@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 from torch import Tensor, nn, optim
 from torch.nn.utils.clip_grad import clip_grad_norm_
 from torch.nn.utils.rnn import pad_sequence
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.tensorboard.writer import SummaryWriter
 
@@ -67,11 +67,11 @@ class PhDataset(Dataset):
 
 def collate_fn(batch: list[tuple[Tensor, Tensor]]):
     # use left padding, flip and flip back after padding
-    word_list = [t[0].flip(dims=[0]) for t in batch]  # list[S_text,]
+    # word_list = [t[0].flip(dims=[0]) for t in batch]  # list[S_text,]
     # [B,S_text]
     word_batch = pad_sequence(
-        word_list, padding_value=0, batch_first=True
-    ).flip(dims=[1])
+        [t[0] for t in batch], padding_value=0, batch_first=True
+    )
 
     ph_batch = pad_sequence(
         [t[1] for t in batch], padding_value=0, batch_first=True
@@ -111,7 +111,7 @@ def train(lang: str, device: str):
     )
     model = G2P(d_model, d_alphabet, d_phoneme, CONF.n_layers, CONF.n_heads, CONF.d_ffn, CONF.dropout).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=CONF.lr)
-    scheduler = ExponentialLR(optimizer, gamma=CONF.lr_decay)
+    scheduler = CosineAnnealingLR(optimizer, T_max=CONF.epochs, eta_min=1e-5)
     loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx).to(DEVICE)
     writer = SummaryWriter(f"./logs/{lang.upper()}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
     global_step = 0
@@ -128,7 +128,7 @@ def train(lang: str, device: str):
             o = o.permute(0, 2, 1)
             loss = loss_func.forward(o, p)
             loss.backward()
-            # clip_grad_norm_(model.parameters(), 0.1)
+            clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
             writer.add_scalar("Train loss", loss, global_step=global_step)
             global_step += 1
@@ -164,7 +164,7 @@ def train(lang: str, device: str):
                 tgt_phoneme = " ".join([phonemes[int(c)] for c in p])
                 pred_phoenme = " ".join([phonemes[int(c)] for c in o])
                 print(
-                    f"Test result:\n\t Source:\t{word},\n\t Target:\t{tgt_phoneme},\n\t Pred:\t{pred_phoenme}"
+                    f"Test result:\n\t Source: {word},\n\t Target: {tgt_phoneme},\n\t Pred:   {pred_phoenme}"
                 )
 
                 # WER

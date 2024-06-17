@@ -2,9 +2,7 @@
 
 This directory contains the code for training a g2p model in English, French and German.
 
-It's a simple seq2seq LSTM, any attempts on improving the model structure failed. Add below the time you wasted on it if you tried the same.
-
-> 10 hours
+It's a 3-layered Transformer model with 2 heads and 256 hidden units.
 
 May change from NN to FST (Finite State Transducer) in the future.
 
@@ -119,14 +117,15 @@ python eval.py en ./ckpt/en-epoch-5.pth
 
 ## Checkpoints
 
-We provide pretrained weights in binary form.
+We provide pretrained weights in binary form, stored in fp16 format to save space. The performance of f32 and f16 is exactly the same.
 
 | lang | code | epochs | PER |
 | --- | --- | --- | --- |
-| English | en | 30 | 10.36% |
-| French | fr | 20 | 1.08% |
-| German | de | 20 | 0.48% |
+| English | en | 50 | 9.03% |
+| French | fr | 10 | 0.86% |
+| German | de | 10 | 0.68% |
 
 ### Note:
 - This g2p model is intended to be used on OOVs with average length (>3), please use lexicon dictionary for 1~2 character words.
 - This model is uncased, which means it doesn't see a difference between `english` and `English`.
+- English needs more epochs to converge, while French and German converge faster.
