@@ -28,7 +28,7 @@ def main(lang: str, checkpoint: str):
     model.eval()
     wer = WordErrorRate()
     for w, p in tqdm(eval_ds):
-        ph = model.forward(w.unsqueeze(0), p.unsqueeze(0))
+        ph = model.inference(w.unsqueeze(0), p.shape[0], conf.sos_idx, conf.eos_idx)
         ph = torch.argmax(ph, dim=-1)
         predict = " ".join([phonemes[int(i)] for i in ph.squeeze()[:-2]])
         ref = " ".join([phonemes[int(i)] for i in p.squeeze()[1:-1]])

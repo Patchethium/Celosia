@@ -128,7 +128,7 @@ def train(lang: str, device: str):
             o = o.permute(0, 2, 1)
             loss = loss_func.forward(o, p)
             loss.backward()
-            clip_grad_norm_(model.parameters(), 0.1)
+            # clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
             writer.add_scalar("Train loss", loss, global_step=global_step)
             global_step += 1
@@ -139,10 +139,10 @@ def train(lang: str, device: str):
                 val_loss = 0
                 val_batches = 0
                 for w, p in val_dl:
-                    o = model.forward(w, p)
+                    o = model.inference(w, p.shape[1], CONF.sos_idx, CONF.eos_idx)
                     # same reason as in training
-                    o = o[:, :-1, :]
                     p = p[:, 1:]
+                    p = torch.cat([p, padding[: p.shape[0], :]], dim=-1)
                     o = o.permute(0, 2, 1)
                     val_loss += loss_func.forward(o, p)
                     val_batches += 1
@@ -156,20 +156,22 @@ def train(lang: str, device: str):
                 )
                 test_case = test_ds[randint(0, len(test_ds))]
                 w, p = test_case
-                o = model.forward(w.unsqueeze(0), p.unsqueeze(0))
+                o = model.inference(w.unsqueeze(0), p.shape[0], CONF.sos_idx, CONF.eos_idx)
                 o = torch.argmax(o, dim=-1).squeeze()
+                p = p[1:]
+                p = torch.cat([p, padding[0, :]], dim=-1)
                 word = "".join([alphabets[int(c)] for c in w])
                 tgt_phoneme = " ".join([phonemes[int(c)] for c in p])
                 pred_phoenme = " ".join([phonemes[int(c)] for c in o])
                 print(
-                    f"Test result:\n\t Source: {word},\n\t Target: {tgt_phoneme},\n\t Pred: {pred_phoenme}"
+                    f"Test result:\n\t Source:\t{word},\n\t Target:\t{tgt_phoneme},\n\t Pred:\t{pred_phoenme}"
                 )
 
                 # WER
                 wer = WER()
                 for i in range(min(500, len(test_ds))):
                     w, p = test_ds[i]
-                    o = model.forward(w.unsqueeze(0), p.unsqueeze(0))
+                    o = model.inference(w.unsqueeze(0), p.shape[0], CONF.sos_idx, CONF.eos_idx)
                     o = torch.argmax(o, dim=-1).squeeze()
                     predict = " ".join([phonemes[int(i)] for i in o[:-2]])
                     ref = " ".join([phonemes[int(i)] for i in p[1:-1]])

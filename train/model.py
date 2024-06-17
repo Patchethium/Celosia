@@ -3,6 +3,32 @@ from torch import nn, Tensor
 from torch.nn import functional as F
 
 
+class SinusoidalPositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len=512):
+        super(SinusoidalPositionalEncoding, self).__init__()
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len).unsqueeze(1).float()
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2).float()
+            * -(torch.log(torch.tensor(10000.0)) / d_model)
+        )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.pe[:, : x.size(1)].detach()
+
+class LearnedPositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len=512):
+        super(LearnedPositionalEncoding, self).__init__()
+        self.pos_emb = nn.Embedding(max_len, d_model)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.pos_emb(torch.arange(x.size(1), device=x.device)).unsqueeze(0)
+
+
 class MHSA(nn.Module):
     def __init__(self, d_model, n_heads, dropout):
         super(MHSA, self).__init__()
@@ -124,6 +150,11 @@ class G2P(nn.Module):
         self.n_heads = n_heads
         self.pad_idx = pad_idx
 
+        self.enc_pos_emb = LearnedPositionalEncoding(d_model)
+        self.dec_pos_emb = LearnedPositionalEncoding(d_model)
+        self.enc_pos_norm = nn.LayerNorm(d_model)
+        self.dec_pos_norm = nn.LayerNorm(d_model)
+
         self.src_emb = nn.Embedding(d_alphabet, d_model)
         self.tgt_emb = nn.Embedding(d_phoneme, d_model)
 
@@ -141,8 +172,8 @@ class G2P(nn.Module):
     def get_tgt_mask(self, tgt: Tensor, tgt_pad_idx: int) -> Tensor:
         pad_mask = tgt != tgt_pad_idx
         pad_mask = pad_mask.unsqueeze(1) & pad_mask.unsqueeze(2)  # [B, S, S]
-        casual_mask = torch.tril(torch.ones(tgt.size(1), tgt.size(1))).bool().to(
-            tgt.device
+        casual_mask = (
+            torch.tril(torch.ones(tgt.size(1), tgt.size(1))).bool().to(tgt.device)
         )
         tgt_mask = pad_mask & casual_mask  # [B, S, S]
         # expand to heads
@@ -150,13 +181,17 @@ class G2P(nn.Module):
             -1, self.n_heads, -1, -1
         )  # [B, H, S, S]
         return tgt_mask
-    
-    def get_cross_mask(self, src: Tensor, tgt: Tensor, src_pad_idx: int, tgt_pad_idx: int) -> Tensor:
+
+    def get_cross_mask(
+        self, src: Tensor, tgt: Tensor, src_pad_idx: int, tgt_pad_idx: int
+    ) -> Tensor:
         # in cross attention, we mask the padding of source and padding of target
-        src_mask = src != src_pad_idx # [B, S_src]
-        tgt_mask = tgt != tgt_pad_idx # [B, S_tgt]
+        src_mask = src != src_pad_idx  # [B, S_src]
+        tgt_mask = tgt != tgt_pad_idx  # [B, S_tgt]
         mask = src_mask.unsqueeze(1) & tgt_mask.unsqueeze(2)  # [B, S_src, S_tgt]
-        mask = mask.unsqueeze(1).expand(-1, self.n_heads, -1, -1)  # [B, H, S_src, S_tgt]
+        mask = mask.unsqueeze(1).expand(
+            -1, self.n_heads, -1, -1
+        )  # [B, H, S_src, S_tgt]
         return mask
 
     def forward(self, src: Tensor, tgt: Tensor) -> Tensor:
@@ -167,10 +202,41 @@ class G2P(nn.Module):
         src = self.src_emb(src)
         tgt = self.tgt_emb(tgt)
 
+        src = src + self.enc_pos_emb(src)
+        tgt = tgt + self.dec_pos_emb(tgt)
+
+        src = self.enc_pos_norm(src)
+        tgt = self.dec_pos_norm(tgt)
+
         enc = self.encoder(src, src_mask)
         dec = self.decoder(tgt, enc, tgt_mask, cross_mask)
 
         return self.fc(dec)
+    
+    def inference(self, src: Tensor, max_len: int, sos_idx: int, eos_idx: int) -> Tensor:
+        src_mask = self.get_src_mask(src, self.pad_idx)
+        src_emb = self.src_emb(src)
+        src_emb = src_emb + self.enc_pos_emb(src_emb)
+        src_emb = self.enc_pos_norm(src_emb)
+        enc = self.encoder(src_emb, src_mask)
+
+        # [B, max_len], filled with pad_idx
+        context = torch.full((src.shape[0], max_len), self.pad_idx, device=src.device)
+        context[:, 0] = sos_idx
+        logits = torch.zeros(src.shape[0], max_len, self.d_phoneme, device=src.device)
+        for t in range(1, max_len):
+            local_context = context[:, :t]
+            local_emb = self.tgt_emb(local_context)
+            local_emb = local_emb + self.dec_pos_emb(local_emb)
+            local_emb = self.dec_pos_norm(local_emb)
+            cross_mask = self.get_cross_mask(src, local_context, self.pad_idx, self.pad_idx)
+            dec = self.decoder(local_emb, enc, None, cross_mask)
+            out = self.fc(dec)[:, -1]
+            logits[:, t-1] = out
+            context[:, t] = out.argmax(dim=-1)
+            if (context[:, t] == eos_idx).all():
+                break
+        return logits
 
 
 # simple test code
@@ -191,7 +257,7 @@ if __name__ == "__main__":
     for _ in range(100):
         out = model(src, tgt)
     print(f"Training time: {(time.time()-start) / 100}")
-    # start = time.time()
-    # for _ in range(100):
-    #     out = model.inference(src, 10, 1)
-    # print(f"Inference time: {(time.time()-start) / 100}")
+    start = time.time()
+    for _ in range(100):
+        out = model.inference(src, 10, 1, 2)
+    print(f"Inference time: {(time.time()-start) / 100}")
