@@ -2,7 +2,7 @@
 
 This directory contains the code for training a g2p model in English, French and German.
 
-It's a 3-layered Transformer model with 2 heads and 256 hidden units.
+It's a 2-layered Transformer model with 2 heads and 256 hidden units.
 
 May change from NN to FST (Finite State Transducer) in the future.
 
@@ -121,9 +121,9 @@ We provide pretrained weights in binary form, stored in fp16 format to save spac
 
 | lang | code | epochs | PER |
 | --- | --- | --- | --- |
-| English | en | 50 | 9.03% |
-| French | fr | 10 | 0.86% |
-| German | de | 10 | 0.68% |
+| English | en | 50 | 9.66% |
+| French | fr | 15 | 0.84% |
+| German | de | 15 | 0.51% |
 
 ### Note:
 - This g2p model is intended to be used on OOVs with average length (>3), please use lexicon dictionary for 1~2 character words.

@@ -1,6 +1,7 @@
 import torch
 from torch import nn, Tensor
 from torch.nn import functional as F
+from functools import lru_cache
 
 
 class SinusoidalPositionalEncoding(nn.Module):
@@ -15,17 +16,18 @@ class SinusoidalPositionalEncoding(nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0)
-        self.register_buffer("pe", pe)
+        self.pe = pe
 
     def forward(self, x: Tensor) -> Tensor:
         return self.pe[:, : x.size(1)].detach()
 
 
 class LearnedPositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=512):
+    def __init__(self, d_model, max_len=64):
         super(LearnedPositionalEncoding, self).__init__()
         self.pos_emb = nn.Embedding(max_len, d_model)
 
+    @lru_cache(maxsize=64)
     def forward(self, x: Tensor) -> Tensor:
         return self.pos_emb(torch.arange(x.size(1), device=x.device)).unsqueeze(0)
 
