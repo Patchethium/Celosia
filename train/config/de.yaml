@@ -1,6 +1,3 @@
-# the german dictionary size is 3 times bigger
-# than fr and en, it needs bigger batch for speed
-# also gets the best performance with the largest data
 seed: 3407
 
 d_model: 256
@@ -11,8 +8,9 @@ pad_idx: 0
 sos_idx: 1
 eos_idx: 2
 
-n_heads: 2
+n_heads: 4
 d_ffn: 1024
+max_len: 16
 dropout: 0.2
 
 batch_size: 512

@@ -109,7 +109,7 @@ def train(lang: str, device: str):
     val_dl = DataLoader(
         val_ds, batch_size=CONF.batch_size, shuffle=False, collate_fn=collate_fn
     )
-    model = G2P(d_model, d_alphabet, d_phoneme, CONF.n_layers, CONF.n_heads, CONF.d_ffn, CONF.dropout).to(DEVICE)
+    model = G2P(d_model, d_alphabet, d_phoneme, CONF.n_layers, CONF.n_heads, CONF.d_ffn, CONF.max_len, CONF.dropout).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=CONF.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=CONF.epochs, eta_min=1e-5)
     loss_func = nn.CrossEntropyLoss(ignore_index=CONF.pad_idx).to(DEVICE)
@@ -178,7 +178,8 @@ def train(lang: str, device: str):
                     wer.update(predict, ref)
                 writer.add_scalar("Test WER", wer.compute(), global_step=global_step)
                 model.train()
-            torch.save(model.state_dict(), f"./ckpt/{lang}-epoch-{e+1}.pth")
+            if (e + 1) % 5 == 0:
+                torch.save(model.state_dict(), f"./ckpt/{lang}-epoch-{e+1}.pth")
             scheduler.step()
 
 

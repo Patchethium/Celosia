@@ -106,7 +106,7 @@ python export.py ./ckpt/en-ckpt-epoch-5.pth ./ckpt/en.bin
 
 ## Evaluate
 
-We randomly sample 2.5% from the dataset as the test set to calculate the WER (Shown below as PER for Phoneme Error Rate).
+We randomly sample 2.5% from the dataset as the test set to calculate the Phoneme WER (Shown below as `PER`).
 
 ```bash
 python eval.py {lang} {checkpoint_path}
@@ -121,9 +121,9 @@ We provide pretrained weights in binary form, stored in fp16 format to save spac
 
 | lang | code | epochs | PER |
 | --- | --- | --- | --- |
-| English | en | 50 | 9.66% |
-| French | fr | 15 | 0.84% |
-| German | de | 15 | 0.51% |
+| English | en | 50 | 8.91% |
+| French | fr | 20 | 0.77% |
+| German | de | 15 | 0.57% |
 
 ### Note:
 - This g2p model is intended to be used on OOVs with average length (>3), please use lexicon dictionary for 1~2 character words.

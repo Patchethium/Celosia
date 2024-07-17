@@ -4,35 +4,23 @@ from torch.nn import functional as F
 from functools import lru_cache
 
 
-class SinusoidalPositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=512):
-        super(SinusoidalPositionalEncoding, self).__init__()
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len).unsqueeze(1).float()
-        div_term = torch.exp(
-            torch.arange(0, d_model, 2).float()
-            * -(torch.log(torch.tensor(10000.0)) / d_model)
-        )
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0)
-        self.pe = pe
-
-    def forward(self, x: Tensor) -> Tensor:
-        return self.pe[:, : x.size(1)].detach()
-
-
-class LearnedPositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=64):
-        super(LearnedPositionalEncoding, self).__init__()
-        self.pos_emb = nn.Embedding(max_len, d_model)
-
-    @lru_cache(maxsize=64)
-    def forward(self, x: Tensor) -> Tensor:
-        return self.pos_emb(torch.arange(x.size(1), device=x.device)).unsqueeze(0)
+# util function for relative index
+@lru_cache(maxsize=128)
+def _get_rel_idx(lq: int, lk: int, max_len: int) -> Tensor:
+    rangeq = torch.arange(lq)
+    rangek = torch.arange(lk)
+    diff = rangeq.unsqueeze(1) - rangek.unsqueeze(0)  # [lq, lk]
+    diff = torch.clamp(diff, -max_len, max_len)
+    return diff + max_len
 
 
 class MHSA(nn.Module):
+    """
+    We're gonna use a simplified version of relative positional encoding used in T5.
+    It's basically just a trainable bias added on top of attention scores.
+    We use it for better length extrapolation ability than absolute one.
+    """
+
     def __init__(self, d_model, n_heads, dropout):
         super(MHSA, self).__init__()
         self.d_model = d_model
@@ -44,7 +32,12 @@ class MHSA(nn.Module):
         self.o = nn.Linear(d_model, d_model)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, q: Tensor, k: Tensor, v: Tensor, mask: Tensor = None) -> Tensor:
+    def forward(
+        self, q: Tensor, k: Tensor, v: Tensor, beta: Tensor, mask: Tensor = None
+    ) -> Tensor:
+        """
+        Beta: [N_head, S_q, S_k]
+        """
         B, S_q, _ = q.size()
         B, S_k, _ = k.size()
         B, S_v, _ = v.size()
@@ -52,6 +45,9 @@ class MHSA(nn.Module):
         k = self.k(k).view(B, S_k, self.n_heads, self.d_head).transpose(1, 2)
         v = self.v(v).view(B, S_v, self.n_heads, self.d_head).transpose(1, 2)
         scores = torch.matmul(q, k.transpose(-2, -1)) / (self.d_head**0.5)
+        if beta is not None:
+            beta = beta.unsqueeze(0)
+            scores = scores + beta  # B is boradcasted
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e9)
         scores = F.softmax(scores, dim=-1)
@@ -84,8 +80,8 @@ class EncoderLayer(nn.Module):
         self.ln1 = nn.LayerNorm(d_model)
         self.ln2 = nn.LayerNorm(d_model)
 
-    def forward(self, x: Tensor, mask: Tensor) -> Tensor:
-        x = self.ln1(x + self.mhsa(x, x, x, mask))
+    def forward(self, x: Tensor, beta: Tensor, mask: Tensor) -> Tensor:
+        x = self.ln1(x + self.mhsa(x, x, x, beta, mask))
         x = self.ln2(x + self.ffn(x))
         return x
 
@@ -100,36 +96,57 @@ class DecoderLayer(nn.Module):
         self.ln2 = nn.LayerNorm(d_model)
         self.ln3 = nn.LayerNorm(d_model)
 
-    def forward(self, x: Tensor, enc: Tensor, mask: Tensor, mask_enc: Tensor) -> Tensor:
-        x = self.ln1(x + self.mhsa1(x, x, x, mask))
-        x = self.ln2(x + self.mhsa2(x, enc, enc, mask_enc))
+    def forward(
+        self,
+        x: Tensor,
+        enc: Tensor,
+        self_beta: Tensor,
+        cross_beta: Tensor,
+        mask: Tensor,
+        mask_enc: Tensor,
+    ) -> Tensor:
+        x = self.ln1(x + self.mhsa1(x, x, x, self_beta, mask))
+        x = self.ln2(x + self.mhsa2(x, enc, enc, cross_beta, mask_enc))
         x = self.ln3(x + self.ffn(x))
         return x
 
 
 class Encoder(nn.Module):
-    def __init__(self, d_model, n_layers, n_heads, d_ffn, dropout):
+    def __init__(self, d_model, n_layers, n_heads, d_ffn, max_len, dropout):
         super(Encoder, self).__init__()
         self.layers = nn.ModuleList(
             [EncoderLayer(d_model, n_heads, d_ffn, dropout) for _ in range(n_layers)]
         )
+        self.beta = nn.Embedding(2 * max_len + 1, n_heads)
+        self.max_len = max_len
 
     def forward(self, x: Tensor, mask: Tensor) -> Tensor:
+        L = x.shape[1]
+        rel_idx = _get_rel_idx(L, L, self.max_len).to(x.device)
+        beta = self.beta(rel_idx)  # [L, L, H]
+        beta = beta.permute(2, 0, 1)  # [H, L, L]
         for layer in self.layers:
-            x = layer(x, mask)
+            x = layer(x, beta, mask)
         return x
 
 
 class Decoder(nn.Module):
-    def __init__(self, d_model, n_layers, n_heads, d_ffn, dropout):
+    def __init__(self, d_model, n_layers, n_heads, d_ffn, max_len, dropout):
         super(Decoder, self).__init__()
         self.layers = nn.ModuleList(
             [DecoderLayer(d_model, n_heads, d_ffn, dropout) for _ in range(n_layers)]
         )
+        self.beta1 = nn.Embedding(2 * max_len + 1, n_heads)
+        self.beta2 = nn.Embedding(2 * max_len + 1, n_heads)
+        self.max_len = max_len
 
     def forward(self, x: Tensor, enc: Tensor, mask: Tensor, mask_enc: Tensor) -> Tensor:
+        rel_idx1 = _get_rel_idx(x.shape[1], x.shape[1], self.max_len).to(x.device)
+        rel_idx2 = _get_rel_idx(x.shape[1], enc.shape[1], self.max_len).to(x.device)
+        beta1 = self.beta1(rel_idx1).permute(2, 0, 1)  # [H, S_q, S_q]
+        beta2 = self.beta2(rel_idx2).permute(2, 0, 1)  # [H, S_q, S_k]
         for layer in self.layers:
-            x = layer(x, enc, mask, mask_enc)
+            x = layer(x, enc, beta1, beta2, mask, mask_enc)
         return x
 
 
@@ -142,6 +159,7 @@ class G2P(nn.Module):
         n_layers,
         n_heads,
         d_ffn,
+        max_len,
         dropout,
         pad_idx=0,
     ):
@@ -153,16 +171,11 @@ class G2P(nn.Module):
         self.n_heads = n_heads
         self.pad_idx = pad_idx
 
-        self.enc_pos_emb = LearnedPositionalEncoding(d_model)
-        self.dec_pos_emb = LearnedPositionalEncoding(d_model)
-        self.enc_pos_norm = nn.LayerNorm(d_model)
-        self.dec_pos_norm = nn.LayerNorm(d_model)
-
         self.src_emb = nn.Embedding(d_alphabet, d_model)
         self.tgt_emb = nn.Embedding(d_phoneme, d_model)
 
-        self.encoder = Encoder(d_model, n_layers, n_heads, d_ffn, dropout)
-        self.decoder = Decoder(d_model, n_layers, n_heads, d_ffn, dropout)
+        self.encoder = Encoder(d_model, n_layers, n_heads, d_ffn, max_len, dropout)
+        self.decoder = Decoder(d_model, n_layers, n_heads, d_ffn, max_len, dropout)
 
         self.fc = nn.Linear(d_model, d_phoneme)
 
@@ -205,12 +218,6 @@ class G2P(nn.Module):
         src = self.src_emb(src)
         tgt = self.tgt_emb(tgt)
 
-        src = src + self.enc_pos_emb(src)
-        tgt = tgt + self.dec_pos_emb(tgt)
-
-        src = self.enc_pos_norm(src)
-        tgt = self.dec_pos_norm(tgt)
-
         enc = self.encoder(src, src_mask)
         dec = self.decoder(tgt, enc, tgt_mask, cross_mask)
 
@@ -221,8 +228,6 @@ class G2P(nn.Module):
     ) -> Tensor:
         src_mask = self.get_src_mask(src, self.pad_idx)
         src_emb = self.src_emb(src)
-        src_emb = src_emb + self.enc_pos_emb(src_emb)
-        src_emb = self.enc_pos_norm(src_emb)
         enc = self.encoder(src_emb, src_mask)
 
         # [B, max_len], filled with pad_idx
@@ -232,8 +237,6 @@ class G2P(nn.Module):
         for t in range(1, max_len):
             local_context = context[:, :t]
             local_emb = self.tgt_emb(local_context)
-            local_emb = local_emb + self.dec_pos_emb(local_emb)
-            local_emb = self.dec_pos_norm(local_emb)
             cross_mask = self.get_cross_mask(
                 src, local_context, self.pad_idx, self.pad_idx
             )
@@ -248,13 +251,12 @@ class G2P(nn.Module):
 
 # simple test code
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = G2P(512, 30, 30, 6, 8, 2048, 0.1).to(device)
+    device = torch.device("cpu")  # for better debug message
+    model = G2P(512, 30, 30, 6, 8, 2048, 6, 0.1).to(device)
     src = torch.randint(0, 30, (32, 10)).to(device)
     tgt = torch.randint(0, 30, (32, 10)).to(device)
     out = model(src, tgt)
     print(out.size())
-    model.tf_ratio = 1.0
     out = model(src, tgt)
     print(out.size())
     # compare time with training(non-tf) and inference

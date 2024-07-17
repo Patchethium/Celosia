@@ -8,8 +8,9 @@ pad_idx: 0
 sos_idx: 1
 eos_idx: 2
 
-n_heads: 2
+n_heads: 4
 d_ffn: 1024
+max_len: 16
 dropout: 0.2
 
 batch_size: 512

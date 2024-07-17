@@ -21,6 +21,7 @@ def main(lang: str, checkpoint: str):
         conf.n_layers,
         conf.n_heads,
         conf.d_ffn,
+        conf.max_len,
         conf.dropout
     )
     model.to(DEVICE)
