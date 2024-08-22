@@ -1,0 +1,2 @@
+files.ignore-files = true
+files.extend-exclude = ["*.json"]

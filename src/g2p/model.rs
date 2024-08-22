@@ -1,419 +1,312 @@
-use std::io::Write;
-use std::num::NonZeroUsize;
-use std::{collections::BTreeMap, fs::File};
-use lru::LruCache;
-use rayon::prelude::*;
+use core::f32;
 
-use crate::g2p::constant::SPECIAL_LEN;
+use crate::g2p::constant::{EOS_IDX, MAX_LEN, SOS_IDX};
+use itertools::izip;
+use ndarray::{s, Array1, Array2, Array3, ArrayView1, ArrayView2, ArrayView3, Axis};
 
-use super::constant::{G2PConfig, D_INTER, D_MODEL, EOS_IDX, MAX_LEN, N_LAYER, PAD_IDX, SOS_IDX};
-use half::f16;
-use pickle::DeOptions;
-use pickle::{HashableValue, Value};
-use serde_pickle as pickle;
-
-// if we use const array it will overflow the stack
-// vec is slower for its length is unknown at compile time
-// and can't be optimized by rustc but it's still usable
-// the reason why I don't use ndarray is becuase I'm an idiot
-// who wants everything from scratch
-// Claim: It's 100 times slower than ndarray
-type Tensor1d<T> = Vec<T>;
-type Tensor2d<T> = Vec<Vec<T>>;
-
-fn get_shape1d<T>(x: &Vec<T>) -> usize {
-  x.len()
-}
-
-fn get_shape2d<T>(x: &Vec<Vec<T>>) -> (usize, usize) {
-  (x.len(), x[0].len())
-}
-
-// utility functions
-fn sigmoid(x: &mut f32) {
-  *x = 1. / (1. + (-*x).exp());
-}
-
-fn softmax(x: &mut Vec<f32>) {
-  let max = x.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&0.).clone();
-  let sum: f32 = x.par_iter().map(|v| (v - max).exp()).sum();
-  x.par_iter_mut().for_each(|v| *v = (*v - max).exp() / sum);
-}
-
-fn tanh(x: &mut f32) {
-  *x = x.tanh();
-}
-
-fn argmax(x: &[f32]) -> usize {
-  x.iter()
-    .enumerate()
-    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
-    .map(|(i, _)| i)
-    .unwrap_or(EOS_IDX)
-}
-
-fn b2v(bytes: &[u8], dim: &usize) -> Tensor1d<f32> {
-  let vec: Tensor1d<f32> = bytes
-    .par_chunks_exact(2)
-    .map(|chunk| f16::from_le_bytes([chunk[0], chunk[1]]).to_f32())
-    .collect();
-  assert_eq!(bytes.len(), *dim * 2);
-  assert_eq!(vec.len(), *dim);
-  vec
-}
-
-// it calls bytes2tensor1d then fold it into 2d tensor
-// it returns a tensor with [dim1, dim2] shape
-fn b2m(bytes: &[u8], dim1: &usize, dim2: &usize) -> Tensor2d<f32> {
-  let mat: Tensor2d<f32> = bytes
-    .par_chunks(dim2 * 2)
-    .map(|chunk| {
-      chunk
-        .par_chunks(2)
-        .map(|c| f16::from_le_bytes([c[0], c[1]]).to_f32())
-        .collect()
-    })
-    .collect();
-
-  assert_eq!(bytes.len(), dim1 * dim2 * 2);
-  assert_eq!(mat.len(), *dim1);
-  assert_eq!(mat[0].len(), *dim2);
-  mat
-}
-
-pub struct Linear {
-  weight: Tensor2d<f32>,
-  bias: Tensor1d<f32>,
-}
-
-// benchmark: on a 8 core cpu, inference time of a 1024x1024 Linear layer
-// is 143 us
-impl Linear {
-  pub fn new(weight: Tensor2d<f32>, bias: Tensor1d<f32>) -> Self {
-    // the weight shape is [d_in, d_out]
-    Self { weight, bias }
-  }
-  // [d_in, d_out].T = [d_out, d_in]
-  // [d_out, d_in] @ [d_in] = [d_out] // weight mul x
-  // [d_out] + [d_out] = [d_out] // bias add x
-  pub fn forward(&self, x: &Tensor1d<f32>, xout: &mut Tensor1d<f32>) {
-    xout.par_iter_mut().enumerate().for_each(|(i, v)| {
-      *v = self.weight[i]
-        .iter()
-        .zip(x.iter())
-        .fold(self.bias[i], |acc, (&_w, &_x)| acc + _w * _x);
-    });
-    // xout
-    //   .par_iter_mut()
-    //   .zip(self.bias.par_iter())
-    //   .for_each(|(v, b)| *v += b);
-  }
-}
-
-pub struct LSTMCell {
-  linear_ih: Linear,
-  linear_hh: Linear,
-}
-
-impl LSTMCell {
-  pub fn new(linear_ih: Linear, linear_hh: Linear) -> Self {
-    Self {
-      linear_ih,
-      linear_hh,
+fn argmax(a: ArrayView1<f32>) -> usize {
+  let mut max_idx = 0;
+  let mut max_val = a[0];
+  for (i, &val) in a.iter().enumerate() {
+    if val > max_val {
+      max_val = val;
+      max_idx = i;
     }
   }
-  // benchmark: 236us for a 256x256 LSTMCell
-  pub fn forward(
-    &self,
-    x: &Tensor1d<f32>,
-    h: &Tensor1d<f32>,
-    c: &Tensor1d<f32>,
-    hout: &mut Tensor1d<f32>,
-    cout: &mut Tensor1d<f32>,
-  ) {
-    let d_model = h.len();
-    let d_inter = d_model * 4;
+  max_idx
+}
 
-    let mut ih_buf = vec![0.; d_inter];
-    let mut hh_buf = vec![0.; d_inter];
-    let mut z_buf = vec![0.; d_inter];
-    
-    self.linear_ih.forward(x, &mut ih_buf);
-    self.linear_hh.forward(h, &mut hh_buf);
-    // z = ih + hh
-      z_buf
-      .par_iter_mut()
-      .zip_eq(ih_buf.par_iter())
-      .zip_eq(hh_buf.par_iter())
-      .for_each(|((z, ih), hh)| *z = ih + hh);
+pub(crate) struct Linear {
+  pub(crate) weight: Array2<f32>,
+  pub(crate) bias: Array1<f32>,
+}
 
-    // i, f, g, o
-    // only g needs tanh, others need sigmoid
-    z_buf.par_iter_mut().enumerate().for_each(|(i, v)| {
-      if 2 * d_model < i && i < 3 * d_model {
-        tanh(v);
-      } else {
-        sigmoid(v);
-      }
-    });
-
-    cout
-      .par_iter_mut()
-      .enumerate()
-      .zip_eq(hout.par_iter_mut())
-      .for_each(|((idx, c_t), h_t)| {
-        let _i = z_buf[idx];
-        let _f = z_buf[idx + d_model];
-        let _g = z_buf[idx + d_model * 2];
-        let _o = z_buf[idx + d_model * 3];
-
-        *c_t = _f * c[idx] + _i * _g;
-        *h_t = _o * c_t.tanh();
-      });
+impl Linear {
+  pub(crate) fn forward(&self, x: ArrayView2<f32>) -> Array2<f32> {
+    x.dot(&self.weight.t()) + &self.bias
   }
 }
 
-pub struct Embedding {
-  weight: Tensor2d<f32>,
+pub(crate) struct Embedding {
+  pub(crate) weight: Array2<f32>, // [vocab_size, d_model]
 }
 
 impl Embedding {
-  // weight: [d_emb, d_model]
-  pub fn new(weight: Tensor2d<f32>) -> Self {
-    Self { weight }
+  pub(crate) fn forward(&self, idx: ArrayView1<usize>) -> Array2<f32> {
+    self.weight.select(Axis(0), idx.as_slice().unwrap())
+  }
+}
+
+pub(crate) struct LayerNorm {
+  pub(crate) weight: Array1<f32>, //[d_model]
+  pub(crate) bias: Array1<f32>,   //[d_model]
+}
+
+impl LayerNorm {
+  pub(crate) fn forward_inplace(&self, x: &mut Array2<f32>) {
+    // x: (seq, d_model)
+    let mean = x.mean_axis(Axis(1)).unwrap().insert_axis(Axis(1)); // (seq, 1)
+    let var = x.var_axis(Axis(1), 0.0).insert_axis(Axis(1)); // (seq, 1)
+    let eps = 1.0e-5;
+
+    // Broadcast operations
+    *x -= &mean;
+    *x /= &(var + eps).mapv(f32::sqrt);
+
+    // Element-wise multiplication and addition
+    *x *= &self.weight.view().insert_axis(Axis(0));
+    *x += &self.bias.view().insert_axis(Axis(0));
+  }
+}
+
+pub(crate) struct MHSA {
+  pub(crate) d_model: usize,
+  pub(crate) n_head: usize,
+  pub(crate) d_head: usize,
+  pub(crate) scale: f32,
+  pub(crate) wq: Linear,
+  pub(crate) wk: Linear,
+  pub(crate) wv: Linear,
+  pub(crate) wo: Linear,
+}
+
+impl MHSA {
+  pub(crate) fn new(wq: Linear, wk: Linear, wv: Linear, wo: Linear, n_head: usize) -> Self {
+    let d_model = wq.weight.shape()[1];
+    let d_head = d_model / n_head;
+    let scale = (d_head as f32).sqrt();
+    MHSA {
+      d_model,
+      n_head,
+      d_head,
+      scale,
+      wq,
+      wk,
+      wv,
+      wo,
+    }
   }
 
-  // x: [seq_len], xout: [seq_len, d_model]
-  pub fn forward(&self, x: &Tensor1d<usize>, xout: &mut Tensor2d<f32>) {
-    xout.par_iter_mut().enumerate().for_each(|(i, v)| {
-      v.copy_from_slice(&self.weight[x[i]]);
+  // q, k, v: (seq_len, d_model)
+  // beta: (n_head, seq_len_q, seq_len_k)
+  pub(crate) fn forward(
+    &self,
+    q: ArrayView2<f32>,
+    k: ArrayView2<f32>,
+    v: ArrayView2<f32>,
+    beta: ArrayView3<f32>, // [n_head, seq_len_q, seq_len_k]
+  ) -> Array2<f32> {
+    let seq_len_q = q.shape()[0];
+    let seq_len_k = k.shape()[0];
+
+    let q = self.wq.forward(q);
+    let k = self.wk.forward(k);
+    let v = self.wv.forward(v);
+
+    let q_reshaped = q.to_shape([seq_len_q, self.n_head, self.d_head]).unwrap();
+    let k_reshaped = k.to_shape([seq_len_k, self.n_head, self.d_head]).unwrap();
+    let v_reshaped = v.to_shape([seq_len_k, self.n_head, self.d_head]).unwrap();
+
+    let mut attention = Array3::zeros((seq_len_q, self.n_head, seq_len_k));
+
+    // attention, ndarray doesn't support batched dot product for Array3
+    // so we manually iterate over the heads
+    izip!(
+      attention.axis_iter_mut(Axis(1)),
+      q_reshaped.axis_iter(Axis(1)),
+      k_reshaped.axis_iter(Axis(1)),
+    )
+    .for_each(|(mut attn, q, k)| {
+      attn.assign(&q.dot(&k.t()));
     });
+
+    attention /= self.scale; // [seq_len_q, n_head, seq_len_k]
+    attention = attention + beta.permuted_axes([1, 0, 2]);
+
+    // softmax
+    attention.axis_iter_mut(Axis(1)).for_each(|mut attn| {
+      // [seq_len_q, seq_len_k], we do softmax along the last axis
+      attn.axis_iter_mut(Axis(0)).for_each(|mut row| {
+        row.mapv_inplace(f32::exp);
+        let sum = row.sum();
+        row /= sum;
+      });
+    });
+
+    // attn @ v
+    let mut output = Array3::<f32>::zeros((seq_len_q, self.n_head, self.d_head));
+    izip!(
+      output.axis_iter_mut(Axis(1)),
+      attention.axis_iter(Axis(1)),
+      v_reshaped.axis_iter(Axis(1)),
+    )
+    .for_each(|(mut out, attn, v)| {
+      out.assign(&attn.dot(&v));
+    });
+
+    let output = output.to_shape([seq_len_q, self.d_model]).unwrap();
+    self.wo.forward(output.view())
   }
 }
 
-pub struct G2P {
-  cache: LruCache<String, Vec<&'static str>>,
-  config: G2PConfig,
-  enc_emb: Embedding,
-  enc_lstm: [LSTMCell; N_LAYER],
-  dec_emb: Embedding,
-  dec_lstm: [LSTMCell; N_LAYER],
-  post: Linear,
+pub(crate) struct FFN {
+  pub(crate) linear1: Linear,
+  pub(crate) linear2: Linear,
 }
 
-impl G2P {
-  pub fn new(
-    config: G2PConfig,
-    enc_emb: Embedding,
-    enc_lstm: [LSTMCell; N_LAYER],
-    dec_emb: Embedding,
-    dec_lstm: [LSTMCell; N_LAYER],
-    post: Linear,
-  ) -> Self {
+impl FFN {
+  pub(crate) fn forward(&self, x: ArrayView2<f32>) -> Array2<f32> {
+    let mut x = self.linear1.forward(x);
+    x.mapv_inplace(|x| f32::max(0.0, x));
+    self.linear2.forward(x.view())
+  }
+}
+
+pub(crate) struct EncoderLayer {
+  pub(crate) mhsa: MHSA,
+  pub(crate) ffn: FFN,
+  pub(crate) ln1: LayerNorm,
+  pub(crate) ln2: LayerNorm,
+}
+
+impl EncoderLayer {
+  pub(crate) fn forward(&self, x: ArrayView2<f32>, beta: ArrayView3<f32>) -> Array2<f32> {
+    let residual = x.view();
+    let mut x = self.mhsa.forward(x, x, x, beta) + &residual;
+    self.ln1.forward_inplace(&mut x);
+    let residual = x.view();
+    let mut x = self.ffn.forward(x.view()) + &residual;
+    self.ln2.forward_inplace(&mut x);
+    x
+  }
+}
+
+pub(crate) struct DecoderLayer {
+  pub(crate) self_mhsa: MHSA,
+  pub(crate) cross_mhsa: MHSA,
+  pub(crate) ffn: FFN,
+  pub(crate) ln1: LayerNorm,
+  pub(crate) ln2: LayerNorm,
+  pub(crate) ln3: LayerNorm,
+}
+
+impl DecoderLayer {
+  pub(crate) fn forward(
+    &self,
+    tgt: ArrayView2<f32>,
+    enc_out: ArrayView2<f32>,
+    beta1: ArrayView3<f32>,
+    beta2: ArrayView3<f32>,
+  ) -> Array2<f32> {
+    let residual = tgt.view();
+    let mut tgt = self.self_mhsa.forward(tgt, tgt, tgt, beta1) + &residual;
+    self.ln1.forward_inplace(&mut tgt);
+    let residual = tgt.view();
+    let mut tgt = self.cross_mhsa.forward(tgt.view(), enc_out, enc_out, beta2) + &residual;
+    self.ln2.forward_inplace(&mut tgt);
+    let residual = tgt.view();
+    let mut tgt = self.ffn.forward(tgt.view()) + &residual;
+    self.ln3.forward_inplace(&mut tgt);
+    tgt += &residual;
+    tgt
+  }
+}
+
+pub(crate) struct Beta {
+  weight: Array2<f32>, // (2*max_len+1, n_head)
+  max_len: usize,
+  n_head: usize,
+}
+
+impl Beta {
+  pub(crate) fn new(weight: Array2<f32>) -> Self {
+    let max_len = weight.shape()[0] / 2;
+    let n_head = weight.shape()[1];
     Self {
-      cache: LruCache::new(NonZeroUsize::new(100).unwrap()),
-      config,
-      enc_emb,
-      enc_lstm,
-      dec_emb,
-      dec_lstm,
-      post,
+      weight,
+      max_len,
+      n_head,
     }
   }
-
-  pub fn forward(&self, src: &Tensor1d<usize>) -> Tensor1d<usize> {
-    let d_model = D_MODEL;
-    let mut h: Tensor2d<f32> = vec![vec![0.; d_model]; N_LAYER];
-    let mut c: Tensor2d<f32> = vec![vec![0.; d_model]; N_LAYER];
-    let mut hout: Tensor2d<f32> = vec![vec![0.; d_model]; N_LAYER];
-    let mut cout: Tensor2d<f32> = vec![vec![0.; d_model]; N_LAYER];
-
-    let mut tgt = vec![SOS_IDX; 1];
-
-    let mut enc_emb = vec![vec![0.; d_model]; src.len()];
-    self.enc_emb.forward(src, &mut enc_emb);
-    for (i, lstm) in self.enc_lstm.iter().enumerate() {
-      for x in enc_emb.iter_mut() {
-        lstm.forward(x, &h[i], &c[i], &mut hout[i], &mut cout[i]);
-        h[i].copy_from_slice(&hout[i]);
-        c[i].copy_from_slice(&cout[i]);
-        x.copy_from_slice(&hout[i]); // reuse the memory
+  pub(crate) fn forward(&self, q_len: usize, k_len: usize) -> Array3<f32> {
+    let q_range = Array1::<isize>::from_iter(0..q_len as isize);
+    let k_range = Array1::<isize>::from_iter(0..k_len as isize);
+    let mut diff =
+      q_range.insert_axis(Axis(1)) - k_range.insert_axis(Axis(0)) + self.max_len as isize;
+    diff.mapv_inplace(|x| x.clamp(0, 2 * self.max_len as isize));
+    let shape = [self.n_head, q_len, k_len];
+    let mut buff = Array3::<f32>::zeros(shape);
+    for i in 0..q_len {
+      for j in 0..k_len {
+        buff
+          .slice_mut(s![.., i, j])
+          .assign(&self.weight.index_axis(Axis(0), diff[[i, j]] as usize));
       }
     }
-    let mut prev = SOS_IDX;
-    let mut emb_buf = vec![vec![0.; d_model]; 1];
-    let mut logit_buf = vec![0.; self.config.d_phoneme];
+    buff
+  }
+}
 
-    while prev != EOS_IDX && prev != PAD_IDX && tgt.len() < MAX_LEN {
-      self.dec_emb.forward(&vec![prev], &mut emb_buf);
-      for (i, lstm) in self.dec_lstm.iter().enumerate() {
-        // emb_buf: [1, d_model], use [0] as squeeze(0)
-        lstm.forward(&emb_buf[0], &h[i], &c[i], &mut hout[i], &mut cout[i]);
-        h[i].copy_from_slice(&hout[i]);
-        c[i].copy_from_slice(&cout[i]);
-        emb_buf[0].copy_from_slice(&hout[i]);
-      }
-      self.post.forward(&h[N_LAYER-1], &mut logit_buf);
-      softmax(&mut logit_buf);
-      prev = argmax(&logit_buf);
-      tgt.push(prev);
+pub(crate) struct Encoder {
+  pub(crate) layers: Vec<EncoderLayer>,
+  pub(crate) beta: Beta,
+}
+
+impl Encoder {
+  pub(crate) fn forward(&self, mut x: Array2<f32>) -> Array2<f32> {
+    let beta = self.beta.forward(x.shape()[0], x.shape()[0]);
+    for layer in &self.layers {
+      x.assign(&layer.forward(x.view(), beta.view()));
+    }
+    x
+  }
+}
+
+pub(crate) struct Decoder {
+  pub(crate) layers: Vec<DecoderLayer>,
+  pub(crate) beta1: Beta, // for self-attention
+  pub(crate) beta2: Beta, // for cross-attention
+}
+
+impl Decoder {
+  pub(crate) fn forward(&self, mut tgt: Array2<f32>, enc_out: ArrayView2<f32>) -> Array2<f32> {
+    let beta1 = self.beta1.forward(tgt.shape()[0], tgt.shape()[0]);
+    let beta2 = self.beta2.forward(tgt.shape()[0], enc_out.shape()[0]);
+    for layer in &self.layers {
+      tgt.assign(&layer.forward(tgt.view(), enc_out, beta1.view(), beta2.view()));
     }
     tgt
   }
+}
 
-  /*
-    enc_emb.weight
-    enc_rnn.weight_ih_l0
-    enc_rnn.weight_hh_l0
-    enc_rnn.bias_ih_l0
-    enc_rnn.bias_hh_l0
-    enc_rnn.weight_ih_l1
-    enc_rnn.weight_hh_l1
-    enc_rnn.bias_ih_l1
-    enc_rnn.bias_hh_l1
-    dec_emb.weight
-    dec_rnn.weight_ih_l0
-    dec_rnn.weight_hh_l0
-    dec_rnn.bias_ih_l0
-    dec_rnn.bias_hh_l0
-    dec_rnn.weight_ih_l1
-    dec_rnn.weight_hh_l1
-    dec_rnn.bias_ih_l1
-    dec_rnn.bias_hh_l1
-    post.weight
-    post.bias
-  */
-  /// loading this takes 10ms on a 8 core cpu
-  pub fn load(path: &str, config: G2PConfig) -> Result<Self, anyhow::Error> {
-    let file = Box::new(File::open(path)?);
-    let decoded = pickle::value_from_reader(file, DeOptions::new().decode_strings())?;
-    let mut wmap = BTreeMap::new();
-    if let Value::Dict(_wmap) = decoded {
-      for (k, v) in _wmap {
-        if let Value::Bytes(b) = v {
-          if let HashableValue::String(s) = k {
-            wmap.insert(s, b);
-          } else {
-            return Err(anyhow::anyhow!("invalid pickle file"));
-          }
-        } else {
-          return Err(anyhow::anyhow!("invalid pickle file"));
-        }
+pub struct Transformer {
+  pub(crate) src_emb: Embedding,
+  pub(crate) tgt_emb: Embedding,
+  pub(crate) encoder: Encoder,
+  pub(crate) decoder: Decoder,
+  pub(crate) fc: Linear,
+}
+
+impl Transformer {
+  // the all-in-one function for inference
+  // including autoregressive decoding
+  pub fn inference(&self, src: Array1<usize>) -> Array1<usize> {
+    let mut tgt = Array1::<usize>::zeros(MAX_LEN);
+    tgt[0] = SOS_IDX;
+    let src = self.src_emb.forward(src.view());
+    let enc_out = self.encoder.forward(src);
+    let mut i = 1;
+    while i < MAX_LEN {
+      let dec_in = self.tgt_emb.forward(tgt.slice(s![..i]).view());
+      let dec_out = self.decoder.forward(dec_in, enc_out.view());
+      let dec_out = self.fc.forward(dec_out.view());
+      let next_token = argmax(dec_out.index_axis(Axis(0), i - 1));
+      tgt[i] = next_token;
+      if next_token == EOS_IDX {
+        break;
       }
-    } else {
-      return Err(anyhow::anyhow!("invalid pickle file"));
-    };
-
-    // enc_emb
-    let enc_emb = Embedding::new(b2m(&wmap["enc_emb.weight"], &config.d_alphabet, &D_MODEL));
-    let dec_emb = Embedding::new(b2m(&wmap["dec_emb.weight"], &config.d_phoneme, &D_MODEL));
-
-    // enc_rnn
-    let enc_rnn_weight_ih_l0 = b2m(&wmap["enc_rnn.weight_ih_l0"], &D_INTER, &D_MODEL);
-    let enc_rnn_weight_hh_l0 = b2m(&wmap["enc_rnn.weight_hh_l0"], &D_INTER, &D_MODEL);
-    let enc_rnn_bias_ih_l0 = b2v(&wmap["enc_rnn.bias_ih_l0"], &D_INTER);
-    let enc_rnn_bias_hh_l0 = b2v(&wmap["enc_rnn.bias_hh_l0"], &D_INTER);
-    let enc_rnn_weight_ih_l1 = b2m(&wmap["enc_rnn.weight_ih_l1"], &D_INTER, &D_MODEL);
-    let enc_rnn_weight_hh_l1 = b2m(&wmap["enc_rnn.weight_hh_l1"], &D_INTER, &D_MODEL);
-    let enc_rnn_bias_ih_l1 = b2v(&wmap["enc_rnn.bias_ih_l1"], &D_INTER);
-    let enc_rnn_bias_hh_l1 = b2v(&wmap["enc_rnn.bias_hh_l1"], &D_INTER);
-
-    let enc_lstm = [
-      LSTMCell::new(
-        Linear::new(enc_rnn_weight_ih_l0, enc_rnn_bias_ih_l0),
-        Linear::new(enc_rnn_weight_hh_l0, enc_rnn_bias_hh_l0),
-      ),
-      LSTMCell::new(
-        Linear::new(enc_rnn_weight_ih_l1, enc_rnn_bias_ih_l1),
-        Linear::new(enc_rnn_weight_hh_l1, enc_rnn_bias_hh_l1),
-      ),
-    ];
-
-    // dec_rnn
-    let dec_rnn_weight_ih_l0 = b2m(&wmap["dec_rnn.weight_ih_l0"], &D_INTER, &D_MODEL);
-    let dec_rnn_weight_hh_l0 = b2m(&wmap["dec_rnn.weight_hh_l0"], &D_INTER, &D_MODEL);
-    let dec_rnn_bias_ih_l0 = b2v(&wmap["dec_rnn.bias_ih_l0"], &D_INTER);
-    let dec_rnn_bias_hh_l0 = b2v(&wmap["dec_rnn.bias_hh_l0"], &D_INTER);
-    let dec_rnn_weight_ih_l1 = b2m(&wmap["dec_rnn.weight_ih_l1"], &D_INTER, &D_MODEL);
-    let dec_rnn_weight_hh_l1 = b2m(&wmap["dec_rnn.weight_hh_l1"], &D_INTER, &D_MODEL);
-    let dec_rnn_bias_ih_l1 = b2v(&wmap["dec_rnn.bias_ih_l1"], &D_INTER);
-    let dec_rnn_bias_hh_l1 = b2v(&wmap["dec_rnn.bias_hh_l1"], &D_INTER);
-
-    let dec_lstm = [
-      LSTMCell::new(
-        Linear::new(dec_rnn_weight_ih_l0, dec_rnn_bias_ih_l0),
-        Linear::new(dec_rnn_weight_hh_l0, dec_rnn_bias_hh_l0),
-      ),
-      LSTMCell::new(
-        Linear::new(dec_rnn_weight_ih_l1, dec_rnn_bias_ih_l1),
-        Linear::new(dec_rnn_weight_hh_l1, dec_rnn_bias_hh_l1),
-      ),
-    ];
-
-    // post
-    let post = Linear::new(
-      b2m(&wmap["post.weight"], &config.d_phoneme, &D_MODEL),
-      b2v(&wmap["post.bias"], &config.d_phoneme),
-    );
-
-    // all set
-    Ok(Self::new(
-      config, enc_emb, enc_lstm, dec_emb, dec_lstm, post,
-    ))
-  }
-
-  // inference takes 12 ms for word "gutenberg" on a 8 core cpu
-  pub fn inference(&self, word: &str) -> anyhow::Result<Vec<&'static str>> {
-    let mut incidies = word
-      .par_chars()
-      .map(|c| {
-        self
-          .config
-          .alphabet
-          .get_by_left(&c)
-          .ok_or_else(|| anyhow::anyhow!("invalid char"))
-          .map(|index| *index)
-      })
-      .collect::<Result<Vec<usize>, anyhow::Error>>()?;
-    // attach sos and eos token
-    incidies.par_iter_mut().for_each(|i| *i += SPECIAL_LEN);
-    incidies.insert(0, SOS_IDX);
-    incidies.push(EOS_IDX);
-    let mut output = self.forward(&incidies);
-    let len = output.len();
-    // get rid of the sos and eos token
-    let output = &mut output[1..len - 1];
-    // offset
-    output.par_iter_mut().for_each(|i| *i -= SPECIAL_LEN);
-    let phoneme: Vec<&'static str> = output
-      .iter()
-      .map(|i| *self.config.phoneme.get_by_right(&i).unwrap_or(&""))
-      .collect();
-    Ok(phoneme)
-  }
-
-  // this is the default function that the user should use
-  pub fn g2p(&mut self, word: &str) -> anyhow::Result<Vec<&str>> {
-    if let Some(phoneme) = self.cache.get(word) {
-      return Ok(phoneme.to_vec());
+      i += 1;
     }
-    let phoneme = self.inference(word)?;
-    self.cache.put(word.to_string(), phoneme.clone());
-    Ok(phoneme)
-  }
-
-  // test use, export the weights for examination
-  // should not be accessible by the user
-  pub(crate) fn export(&self, path: &str) -> anyhow::Result<()> {
-    // export the wanted weights so that I can see if it's correct
-    // I'll hard code the key for now
-    let mut file = File::create(path)?;
-    let weight = &self.enc_lstm[0].linear_hh.weight;
-    for v in weight.iter() {
-      for i in v.iter() {
-        file.write(&i.to_le_bytes())?;
-      }
-    }
-    Ok(())
+    tgt.slice(s![1..i]).to_owned()
   }
 }

@@ -3,11 +3,9 @@ use pickle::DeOptions;
 use serde_pickle as pickle;
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::File;
-use std::io::Read;
-use std::result::Result;
-/// Averaged perceptron tagger, use the weights from nltk data
-
+use std::io::{Cursor, Read};
+/// Averaged perceptron tagger, using the weights from nltk data,
+/// manually transcribed from its Python version, Apache 2.0.
 #[derive(Debug)]
 pub struct AveragedPerceptron {
   weights: BTreeMap<String, BTreeMap<String, f64>>,
@@ -97,28 +95,27 @@ const START: [&str; 2] = ["-START-", "-START2-"];
 const END: [&str; 2] = ["-END-", "-END2-"];
 
 impl PerceptronTagger {
-  pub fn new(path: &str) -> Result<PerceptronTagger, anyhow::Error> {
+  pub fn new(data: &[u8]) -> PerceptronTagger {
     let model = AveragedPerceptron::new(None);
     let tagdict: BTreeMap<String, String> = BTreeMap::new();
     let classes: BTreeSet<String> = BTreeSet::new();
     let mut sentences: Vec<Vec<(String, String)>> = Vec::new();
 
-    let model_path = path.into();
     let mut tagger = PerceptronTagger {
       model,
       tagdict,
       classes,
       _sentences: Vec::new(),
     };
-    tagger.load(model_path)?;
+    tagger.load(data).unwrap();
     tagger.make_tagdict(&mut sentences);
 
-    Ok(tagger)
+    tagger
   }
 
   pub fn tag(
     &self,
-    tokens: Vec<String>,
+    tokens: &Vec<&str>,
     return_conf: bool,
     use_tagdict: bool,
   ) -> Vec<(String, String, Option<f64>)> {
@@ -133,7 +130,7 @@ impl PerceptronTagger {
 
     for (i, word) in tokens.iter().enumerate() {
       let (tag, conf_old) = if use_tagdict {
-        (self.tagdict.get(word), Some(1.0 as f64))
+        (self.tagdict.get(*word), Some(1.0 as f64))
       } else {
         (None, None)
       };
@@ -156,8 +153,8 @@ impl PerceptronTagger {
     output
   }
 
-  pub fn load(&mut self, loc: String) -> anyhow::Result<(), anyhow::Error> {
-    let reader: Box<dyn Read> = Box::new(File::open(loc)?);
+  fn load(&mut self, data: &[u8]) -> anyhow::Result<(), anyhow::Error> {
+    let reader: Box<dyn Read> = Box::new(Cursor::new(data));
     let decoded = pickle::value_from_reader(reader, DeOptions::new().decode_strings())?;
 
     let (weights, tagdict, classes) = serde_pickle::from_value::<(
@@ -234,7 +231,7 @@ impl PerceptronTagger {
     // It's useful to have a constant feature, which acts sort of like a prior
     features.insert("bias".to_string(), 1);
 
-    let i_suffix = &word[word.len() - 3..];
+    let i_suffix = &word[word.len().saturating_sub(3)..];
     let i_pref1 = &word[0..1];
     let i_minus_1_tag = prev;
     let i_minus_2_tag = prev2;
@@ -267,7 +264,7 @@ impl PerceptronTagger {
     }
 
     fn safe_sub(a: usize, b: usize) -> usize {
-      // performes a - b, 0 if b > a, to sim python's negative index
+      // performs a - b, 0 if b > a, to sim python's negative index
       if b > a {
         0
       } else {
@@ -276,5 +273,26 @@ impl PerceptronTagger {
     }
 
     features
+  }
+}
+
+pub(crate) fn match_pos(nltk_pos: &str, amepd_pos: &str) -> bool {
+  match amepd_pos {
+    "adv" if nltk_pos == "RB" || nltk_pos == "RBR" || nltk_pos == "RBS" => true,
+    "prep" if nltk_pos == "IN" => true,
+    "verb" if &nltk_pos[..2.min(nltk_pos.len())] == "VB" => true,
+    "noun" if &nltk_pos[..2.min(nltk_pos.len())] == "NN" => true,
+    "num" if nltk_pos == "CD" => true,
+    amepd
+      if &amepd[..3.min(amepd.len())] == "adj" && &nltk_pos[..2.min(nltk_pos.len())] == "JJ" =>
+    {
+      true
+    }
+    "pron" if &nltk_pos[..3.min(amepd_pos.len())] == "PRP" => true,
+    "conj" if nltk_pos == "CC" => true,
+    "det" if &nltk_pos[nltk_pos.len().saturating_sub(3)..] == "DT" => true,
+    "verb@past" if nltk_pos == "VBD" || nltk_pos == "VBN" => true,
+    "intj" if nltk_pos == "UH" => true,
+    _ => false,
   }
 }

@@ -1,18 +1,19 @@
+use std::hash::Hash;
+
 use bimap::BiMap;
 
-pub(crate) const D_MODEL: usize = 256;
-pub(crate) const D_INTER: usize = D_MODEL * 4;
-
-pub(crate) const N_LAYER: usize = 2;
+pub(crate) const N_ENC_LAYER: usize = 2;
+pub(crate) const N_DEC_LAYER: usize = 2;
+pub(crate) const N_HEAD: usize = 4;
 
 pub(crate) const SPECIAL_TOKENS: [&str; 3] = ["<pad>", "<sos>", "<eos>"];
 pub(crate) const SPECIAL_LEN: usize = SPECIAL_TOKENS.len();
 
 pub(crate) const PAD_IDX: usize = 0;
-pub(crate) const SOS_IDX: usize = 1;
-pub(crate) const EOS_IDX: usize = 2;
+pub const SOS_IDX: usize = 1;
+pub const EOS_IDX: usize = 2;
 
-pub(crate) const MAX_LEN: usize = 64;
+pub(crate) const MAX_LEN: usize = 32;
 
 pub(crate) const EN_ALPHABET: [char; 27] = [
   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
@@ -72,13 +73,14 @@ impl Default for LANG {
   }
 }
 
-fn s2bimap(s: &[&'static str]) -> BiMap<&'static str, usize> {
-  s.iter().enumerate().map(|(i, &v)| (v, i)).collect()
+fn to_bimap<T: Copy + Eq + Hash>(slice: &[T]) -> BiMap<T, usize> {
+  slice
+    .iter()
+    .enumerate()
+    .map(|(i, &v)| (v, i + SPECIAL_LEN))
+    .collect()
 }
 
-fn c2bimap(c: &[char]) -> BiMap<char, usize> {
-  c.iter().enumerate().map(|(i, &v)| (v, i)).collect()
-}
 // the config should contain:
 // - the language
 // - the alphabet of the language
@@ -98,22 +100,22 @@ impl G2PConfig {
     match lang {
       LANG::EN => Self {
         lang,
-        alphabet: c2bimap(&EN_ALPHABET),
-        phoneme: s2bimap(&EN_PHONEME),
+        alphabet: to_bimap(&EN_ALPHABET),
+        phoneme: to_bimap(&EN_PHONEME),
         d_alphabet: D_EN_ALPHABET,
         d_phoneme: D_EN_PHONEME,
       },
       LANG::FR => Self {
         lang,
-        alphabet: c2bimap(&FR_ALPHABET),
-        phoneme: s2bimap(&FR_PHONEME),
+        alphabet: to_bimap(&FR_ALPHABET),
+        phoneme: to_bimap(&FR_PHONEME),
         d_alphabet: D_FR_ALPHABET,
         d_phoneme: D_FR_PHONEME,
       },
       LANG::DE => Self {
         lang,
-        alphabet: c2bimap(&DE_ALPHABET),
-        phoneme: s2bimap(&DE_PHONEME),
+        alphabet: to_bimap(&DE_ALPHABET),
+        phoneme: to_bimap(&DE_PHONEME),
         d_alphabet: D_DE_ALPHABET,
         d_phoneme: D_DE_PHONEME,
       },

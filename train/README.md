@@ -2,7 +2,7 @@
 
 This directory contains the code for training a g2p model in English, French and German.
 
-It's a 2-layered Transformer model with 2 heads and 256 hidden units.
+It's a simple seq2seq transformer model, just as described in the paper [Attention is All You Need](https://arxiv.org/abs/1706.03762).
 
 May change from NN to FST (Finite State Transducer) in the future.
 

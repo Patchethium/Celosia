@@ -40,9 +40,16 @@ Thanks for the orthography, French & German generally don't have the disambiguat
 1. Look up words in `CC-CEDICT` for pinyin and tones.
 2. Predict the spelling with a g2p[^2] model.
 
-### Languages
+## Development
 
-If you only use a subset of these languages, you can prune unused languages for the binary size. Some complex languages like Japanese takes some huge size.
+```bash
+# test
+cargo test
+# benchmark
+cargo bench
+# build
+cargo build --release
+```
 
 ## License
 
@@ -50,9 +57,13 @@ If you only use a subset of these languages, you can prune unused languages for 
 
 ## About the name
 
-Celosia<sup>[wikipedia](https://en.wikipedia.org/wiki/Celosia)</sup> is a small genus of edible and ornamental plants in the amaranth family, Amaranthaceae
+Celosia<sup>[wikipedia](https://en.wikipedia.org/wiki/Celosia)</sup> is a small genus of edible and ornamental plants in the amaranth family, Amaranthaceae.
 
 <p><a href="https://commons.wikimedia.org/wiki/File:Celosia.JPG#/media/File:Celosia.JPG"><img src="https://upload.wikimedia.org/wikipedia/commons/5/54/Celosia.JPG" alt="Celosia.JPG"></a><br>By <a href="//commons.wikimedia.org/wiki/User:Hariya1234" title="User:Hariya1234">Hariya1234</a> - <span class="int-own-work" lang="en">Own work</span>, <a href="https://creativecommons.org/licenses/by-sa/3.0" title="Creative Commons Attribution-Share Alike 3.0">CC BY-SA 3.0</a>, <a href="https://commons.wikimedia.org/w/index.php?curid=15904310">Link</a></p>
+
+## Credits
+
+The 3-rd party licences can be referred at [third_party/README.md](third_party/README.md).
 
 [^1]: `Phonemize` here refers to the procedure of transforming one or more word(s) into a phoneme sequence:  
 "hello, world" -> "hh ax l ow1 _ w er1 l d" # Yes  

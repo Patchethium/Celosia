@@ -33,7 +33,7 @@ class PhDataset(Dataset):
         self.device = device
         f = open(dict_path, "r")
         lines = f.readlines()
-        als = {c: i for i, c in enumerate(alphabets)}
+        alps = {c: i for i, c in enumerate(alphabets)}
         phs = {p: i for i, p in enumerate(phonemes)}
         for line in lines:
             line = line.rstrip()
@@ -41,7 +41,7 @@ class PhDataset(Dataset):
                 continue
             word, phoneme = line.split("  ")
             word_t = torch.LongTensor(
-                [conf.sos_idx] + [als[c] for c in word] + [conf.eos_idx]
+                [conf.sos_idx] + [alps[c] for c in word] + [conf.eos_idx]
             )
             ph_t = torch.LongTensor(
                 [conf.sos_idx] + [phs[p] for p in phoneme.split(" ")] + [conf.eos_idx]
@@ -135,7 +135,7 @@ def train(lang: str, device: str):
         else:
             with torch.no_grad():
                 model.eval()
-                # valdate into tensorboard
+                # validate into tensorboard
                 val_loss = 0
                 val_batches = 0
                 for w, p in val_dl:

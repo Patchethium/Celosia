@@ -72,7 +72,7 @@ def english():
         filtered = False
         word = line.split("  ")[0]
         phoneme = line.split("  ")[1]
-        # first remove the pos tagging surrended by `()`
+        # first remove the pos tagging surrendered by `()`
         if "(" in word:
             word = word.split("(")[0]
         for char in word:
