@@ -1,25 +1,49 @@
+/// The all-in-one phonemizer for English
 use std::collections::{HashMap, HashSet};
-use std::num::NonZeroUsize;
 
 use serde_json::from_str;
 
-use super::data::{EN_G2P_DATA, EN_HOMO_DICT, EN_NORMAL_DICT, EN_TAGGER_DATA, PUNCTUATION};
+use super::data::{EN_HOMO_DICT, EN_NORMAL_DICT, EN_TAGGER_DATA, PUNCTUATION};
 use super::number::get_num;
 use super::tagger;
 use super::tokenizer::naive_split;
 use crate::en::tagger::match_pos;
-use crate::g2p::constant::{G2PConfig, LANG};
+use crate::g2p::constant::LANG;
 use crate::g2p::wrapper::G2P;
 
 type NormalDict = HashMap<String, Vec<&'static str>>;
 type HomoDict = HashMap<String, HashMap<String, Vec<&'static str>>>;
 
-pub fn parse_dict() -> (NormalDict, HomoDict) {
+fn parse_dict() -> (NormalDict, HomoDict) {
   let normal = from_str(&EN_NORMAL_DICT).unwrap();
   let homo = from_str(&EN_HOMO_DICT).unwrap();
   (normal, homo)
 }
 
+/// The all-in-one phonemizer for English.
+///
+/// It transforms a whole sentence into phonemes, by:
+/// - Splitting the sentence into words and punctuation
+/// - Normalizing the words
+/// - Get the POS tag with an average perceptron tagger
+/// - Checking for homophones and disambiguate them with POS tags
+/// - Checking for normal words. Those POS tags don't match any homophones
+/// will also fall back to this category
+/// - If not found, use the G2P model to get the phonemes
+/// - The G2P model has a LRU cache by default, its size can be specified
+///
+/// **Example:**
+/// ```rust
+/// use celosia::en::Phonemizer as EnPhonemizer;
+/// let phonemizer = EnPhonemizer::default();
+/// // to specify the cache size
+/// // let phonemizer = Phonemizer::new(NonZeroUsize(128).unwrap())
+/// let text = "Printing, in the only sense with which we are at present concerned.";
+/// let phonemes = phonemizer.phonemize(text);
+/// println!("{:?}", phonemes);
+/// ```
+/// Note: the initialization of the phonemizer is quite heavy (takes one whole second), so it is recommended
+/// to keep the instance alive and reuse it.
 pub struct Phonemizer {
   normal: NormalDict,
   homo: HomoDict,
@@ -29,17 +53,17 @@ pub struct Phonemizer {
 }
 
 impl Default for Phonemizer {
+  /// The default cache size of G2P model is 128
   fn default() -> Self {
-    Self::new(NonZeroUsize::new(128).unwrap())
+    Self::new(128)
   }
 }
 
 impl Phonemizer {
-  pub fn new(cache_size: NonZeroUsize) -> Self {
+  pub fn new(cache_size: usize) -> Self {
     let (normal, homo) = parse_dict();
     let tagger = tagger::PerceptronTagger::new(EN_TAGGER_DATA);
-    let config = G2PConfig::new(LANG::EN);
-    let g2p = G2P::new(config, EN_G2P_DATA, cache_size);
+    let g2p = G2P::new(LANG::EN, cache_size);
     let punc_map = PUNCTUATION.chars().collect();
 
     Self {
@@ -51,6 +75,15 @@ impl Phonemizer {
     }
   }
 
+  /// Call the phonemizer and process the sentence.
+  /// The returned phonemes are stored in a manner of Vec<Vec<&str>>.
+  /// Be noted that the punctuations in `()[]{},!?'` are preserved,
+  /// their phonemes are empty `Vec`s.
+  ///
+  /// **Example:**
+  /// ```text
+  /// "Hello, world!" -> ["Hello", ",", "world", "!"] -> [["hh","ax","l","ow1"], [], ["w","er1","l","d"], []]
+  /// ```
   // FIXME: `clone()` are everywhere and may drag the performance down
   pub fn phonemize(&self, text: &str) -> Vec<Vec<&str>> {
     let mut words = naive_split(text);

@@ -1,13 +1,13 @@
+use super::data::EN_TAGGER_DATA;
 use ordered_float::OrderedFloat;
 use pickle::DeOptions;
 use serde_pickle as pickle;
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Cursor, Read};
-/// Averaged perceptron tagger, using the weights from nltk data,
-/// manually transcribed from its Python version, Apache 2.0.
+
 #[derive(Debug)]
-pub struct AveragedPerceptron {
+struct AveragedPerceptron {
   weights: BTreeMap<String, BTreeMap<String, f64>>,
   classes: BTreeSet<String>,
   _totals: BTreeMap<(String, String), f64>,
@@ -83,6 +83,20 @@ impl AveragedPerceptron {
   }
 }
 
+/// An averaged perceptron tagger, using the weights from nltk data,
+/// manually transcribed from its Python version, Apache 2.0.
+///
+/// **Usage:**
+/// ```
+/// use celosia::en::tagger::PerceptronTagger as tagger;
+/// use celosia::en::tokenizer::naive_split;
+///
+/// let tagger = tagger::default();
+/// let sentence = "The quick brown fox jumps over the lazy dog.";
+/// let tokens = naive_split(sentence);
+/// let tagged = tagger.tag(&tokens, false, true);
+/// println!("{:?}", tagged);
+/// ```
 #[derive(Debug)]
 pub struct PerceptronTagger {
   model: AveragedPerceptron,
@@ -91,8 +105,14 @@ pub struct PerceptronTagger {
   _sentences: Vec<Vec<(String, String)>>,
 }
 
-const START: [&str; 2] = ["-START-", "-START2-"];
-const END: [&str; 2] = ["-END-", "-END2-"];
+static START: [&str; 2] = ["-START-", "-START2-"];
+static END: [&str; 2] = ["-END-", "-END2-"];
+
+impl Default for PerceptronTagger {
+  fn default() -> Self {
+    PerceptronTagger::new(EN_TAGGER_DATA)
+  }
+}
 
 impl PerceptronTagger {
   pub fn new(data: &[u8]) -> PerceptronTagger {

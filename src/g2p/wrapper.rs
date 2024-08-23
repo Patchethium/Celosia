@@ -1,4 +1,5 @@
-use crate::g2p::constant::{G2PConfig, EOS_IDX, SOS_IDX};
+use crate::g2p::constant::{G2PConfig, EOS_IDX, SOS_IDX, LANG};
+use crate::en::data::EN_G2P_DATA;
 use crate::g2p::model::Transformer;
 use crate::g2p::serde::load_trf;
 use lru::LruCache;
@@ -13,22 +14,33 @@ pub struct G2P {
   config: G2PConfig,
   trf: Transformer,
   // workaround to make the compiler happy
-  cache: Mutex<RefCell<lru::LruCache<String, Vec<&'static str>>>>,
+  cache: Option<Mutex<RefCell<lru::LruCache<String, Vec<&'static str>>>>>,
 }
 
 impl G2P {
-  pub fn new(config: G2PConfig, data: &[u8], cache_size: NonZeroUsize) -> Self {
+  pub fn new(lang: LANG, cache_size: usize) -> Self {
+    let config = G2PConfig::new(lang.clone());
+    let data = match lang {
+      LANG::EN => {
+        EN_G2P_DATA
+      },
+      _ => panic!("Unsupported language {}", lang.to_string()),
+    };
     let trf = load_trf(data);
-    Self {
-      config,
-      trf,
-      cache: Mutex::new(RefCell::new(LruCache::new(cache_size))),
-    }
+    let cache = match cache_size {
+      0 => None,
+      x => Some(Mutex::new(RefCell::new(LruCache::new(
+        NonZeroUsize::new(x).unwrap(),
+      )))),
+    };
+    Self { config, trf, cache }
   }
 
   pub fn inference(&self, word: &str) -> Vec<&str> {
-    if let Some(phoneme) = self.cache.lock().unwrap().borrow_mut().get(word) {
-      return phoneme.clone();
+    if let Some(cache) = &self.cache {
+      if let Some(phoneme) = cache.lock().unwrap().borrow_mut().get(word) {
+        return phoneme.clone();
+      }
     }
 
     let mut indices = word
@@ -47,16 +59,19 @@ impl G2P {
       .map(|&idx| *self.config.phoneme.get_by_right(&idx).unwrap())
       .collect::<Vec<_>>();
 
-    self
-      .cache
-      .lock()
-      .unwrap()
-      .borrow_mut()
-      .put(word.to_string(), phoneme.clone());
+    if let Some(cache) = &self.cache {
+      cache
+        .lock()
+        .unwrap()
+        .borrow_mut()
+        .put(word.to_string(), phoneme.clone());
+    }
     phoneme
   }
 
   pub fn clean_cache(&mut self) {
-    self.cache.lock().unwrap().borrow_mut().clear();
+    if let Some(cache) = &self.cache {
+      cache.lock().unwrap().borrow_mut().clear();
+    }
   }
 }

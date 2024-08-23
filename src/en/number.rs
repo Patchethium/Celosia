@@ -3,8 +3,8 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
 
-// transform a number into English words
-// lazy initialize a hash map of common words
+// transform a number into English words.
+// lazy initialize a hash map of common words.
 lazy_static! {
   static ref NUMMAP: HashMap<u32, &'static str> = {
     let mut m = HashMap::new();
@@ -42,8 +42,16 @@ lazy_static! {
   };
 }
 
-/// spells out numbers one by one
-pub(crate) fn spell_1b1(num: u32) -> Vec<&'static str> {
+/// Spells out numbers one by one.
+/// ```text
+/// 12345 -> [one, two, three, four, five]
+/// ```
+pub fn spell_as_is(num: i64) -> Vec<&'static str> {
+  let mut result = Vec::new();
+  if num < 0 {
+    result.push("minus");
+  }
+  let num = num.abs() as u64;
   num
     .to_string()
     .chars()
@@ -51,8 +59,11 @@ pub(crate) fn spell_1b1(num: u32) -> Vec<&'static str> {
     .collect()
 }
 
-/// spells out numbers as digits
-pub(crate) fn spell_as_digit(num: i64) -> Vec<&'static str> {
+/// Spells out numbers as digits.
+/// ```text
+/// 12345 -> [twelve, thousand, three, hundred, forty, five]
+/// ```
+pub fn spell_as_digit(num: i64) -> Vec<&'static str> {
   let mut result = Vec::new();
   if num < 0 {
     result.push("minus");
@@ -83,7 +94,7 @@ pub(crate) fn spell_as_digit(num: i64) -> Vec<&'static str> {
       }
       // for nums larger than 9999, spell one by one
       _ => {
-        result.extend(spell_1b1(num));
+        result.extend(spell_as_is(num as i64));
         num = 0;
       }
     }
@@ -91,8 +102,16 @@ pub(crate) fn spell_as_digit(num: i64) -> Vec<&'static str> {
   result
 }
 
-/// get the number from a string
-pub(super) fn get_num(word: &str) -> Result<Vec<&str>> {
+/// Normalize a number word.
+///
+/// This function recognizes
+/// - Phone numbers
+/// - Float numbers (i.e. -287.5)
+/// - Normal demical numbers (i.e. 123, -123)
+///   - If the number is larger than 9999, it will be spelled one by one,
+///     as I think it's closer to the way people speak
+/// Any other number will be split into digits and spelled one by one.
+pub fn get_num(word: &str) -> Result<Vec<&str>> {
   let mut split = Vec::new();
   // check if it's a phone number
   let phone_number_re = Regex::new(r"^[0-9]+\-[0-9]+\-[0-9]+$")?;
@@ -104,7 +123,7 @@ pub(super) fn get_num(word: &str) -> Result<Vec<&str>> {
     _ if phone_number_re.is_match(word) => {
       for captures in number_re.captures_iter(word) {
         if let Some(num) = captures.get(0) {
-          split.extend(spell_1b1(num.as_str().parse::<u32>()?));
+          split.extend(spell_as_is(num.as_str().parse::<i64>()?));
         }
       }
     }
@@ -120,7 +139,7 @@ pub(super) fn get_num(word: &str) -> Result<Vec<&str>> {
       // the dot
       split.push("point");
       // the right part
-      split.extend(spell_1b1(right[1..].parse::<u32>()?));
+      split.extend(spell_as_is(right[1..].parse::<i64>()?));
     }
     // normal number, spell as digit
     // be aware that if the number is too big, it will fall back to be spoken one by one
@@ -132,7 +151,7 @@ pub(super) fn get_num(word: &str) -> Result<Vec<&str>> {
     _ => {
       for captures in number_re.captures_iter(word) {
         if let Some(num) = captures.get(0) {
-          split.extend(spell_1b1(num.as_str().parse::<u32>()?));
+          split.extend(spell_as_is(num.as_str().parse::<i64>()?));
         }
       }
     }

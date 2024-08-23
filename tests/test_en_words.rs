@@ -1,4 +1,4 @@
-use celosia::en::phonemizer::Phonemizer;
+use celosia::en::Phonemizer;
 use lazy_static::lazy_static;
 
 lazy_static! {

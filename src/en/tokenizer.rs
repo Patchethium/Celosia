@@ -1,6 +1,7 @@
 use regex::Regex;
 
-/// Split an English sentence into words and puncuations
+/// Split an English sentence into words and puncuations.  
+/// It is implemented using simple regex and is very inaccurate.  
 pub fn naive_split(input: &str) -> Vec<&str> {
   // the regex matches all words, separates single character
   // separates numbers and words, i.e. p90 -> p 90
