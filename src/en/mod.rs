@@ -23,11 +23,12 @@
 //! spell_as_digit(num); // [minus, twelve, thousand, three, hundred, forty, five]
 //! ```
 
-pub(crate) mod data;
+pub(crate) mod constant;
 pub(crate) mod phonemizer;
 
 pub mod number;
 pub mod tagger;
 pub mod tokenizer;
 
-pub use phonemizer::Phonemizer;
+pub use constant::{EN_ALPHABET, EN_PHONEME};
+pub use phonemizer::Phonemizer; // re-export for external use

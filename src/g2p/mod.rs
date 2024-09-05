@@ -6,11 +6,13 @@
 //! ```rust
 //! use celosia::g2p::G2P;
 //! use celosia::g2p::LANG;
-//! 
+//! use celosia::en::Phonemizer;
 //! let g2p = G2P::new(LANG::EN, 128);
-//! 
+//! let phonemizer = Phonemizer::default();
+//!
 //! let word = "celosia";
-//! let phoneme = g2p.inference(word);
+//! let indices = phonemizer.char2idx(word);
+//! let phoneme = g2p.inference(indices);
 //! ```
 //! The G2P model is a encoder-decoder transformer model, each has 256 attention dim,
 //! 2 layers and 4 heads. This makes inference very time consuming, by default it contains
@@ -21,5 +23,5 @@ pub(crate) mod model;
 pub(crate) mod serde;
 pub(crate) mod wrapper;
 
-pub use wrapper::G2P;
 pub use constant::LANG;
+pub use wrapper::G2P;

@@ -1,18 +1,23 @@
 /// The all-in-one phonemizer for English
 use std::collections::{HashMap, HashSet};
 
+use bimap::BiMap;
 use serde_json::from_str;
 
-use super::data::{EN_HOMO_DICT, EN_NORMAL_DICT, EN_TAGGER_DATA, PUNCTUATION};
+use super::constant::{
+  EN_ALPHABET, EN_HOMO_DICT, EN_NORMAL_DICT, EN_PHONEME, EN_TAGGER_DATA, PUNCTUATION, UNK_TOKEN,
+};
 use super::number::get_num;
 use super::tagger;
 use super::tokenizer::naive_split;
 use crate::en::tagger::match_pos;
 use crate::g2p::constant::LANG;
+use crate::g2p::constant::SPECIAL_LEN;
 use crate::g2p::wrapper::G2P;
+use crate::utils::to_bimap;
 
-type NormalDict = HashMap<String, Vec<&'static str>>;
-type HomoDict = HashMap<String, HashMap<String, Vec<&'static str>>>;
+type NormalDict = HashMap<String, Vec<usize>>;
+type HomoDict = HashMap<String, HashMap<String, Vec<usize>>>;
 
 fn parse_dict() -> (NormalDict, HomoDict) {
   let normal = from_str(&EN_NORMAL_DICT).unwrap();
@@ -45,6 +50,8 @@ fn parse_dict() -> (NormalDict, HomoDict) {
 /// Note: the initialization of the phonemizer is quite heavy (takes one whole second), so it is recommended
 /// to keep the instance alive and reuse it.
 pub struct Phonemizer {
+  char_map: BiMap<char, usize>,
+  ph_map: BiMap<&'static str, usize>,
   normal: NormalDict,
   homo: HomoDict,
   tagger: tagger::PerceptronTagger,
@@ -61,18 +68,38 @@ impl Default for Phonemizer {
 
 impl Phonemizer {
   pub fn new(cache_size: usize) -> Self {
+    let char_map = to_bimap(&EN_ALPHABET, SPECIAL_LEN);
+    let ph_map = to_bimap(&EN_PHONEME, SPECIAL_LEN);
     let (normal, homo) = parse_dict();
     let tagger = tagger::PerceptronTagger::new(EN_TAGGER_DATA);
     let g2p = G2P::new(LANG::EN, cache_size);
     let punc_map = PUNCTUATION.chars().collect();
 
     Self {
+      char_map,
+      ph_map,
       normal,
       homo,
       tagger,
       g2p,
       punc_map,
     }
+  }
+
+  pub fn char2idx(&self, word: impl AsRef<str>) -> Vec<usize> {
+    word
+      .as_ref()
+      .chars()
+      .into_iter()
+      .map(|c| self.char_map.get_by_left(&c).unwrap_or(&0).to_owned())
+      .collect()
+  }
+
+  pub fn idx2ph(&self, indices: &Vec<usize>) -> Vec<&'static str> {
+    indices
+      .iter()
+      .map(|i| *self.ph_map.get_by_right(i).unwrap_or(&UNK_TOKEN))
+      .collect()
   }
 
   /// Call the phonemizer and process the sentence.
@@ -84,12 +111,10 @@ impl Phonemizer {
   /// ```text
   /// "Hello, world!" -> ["Hello", ",", "world", "!"] -> [["hh","ax","l","ow1"], [], ["w","er1","l","d"], []]
   /// ```
-  // FIXME: `clone()` are everywhere and may drag the performance down
-  pub fn phonemize(&self, text: &str) -> Vec<Vec<&str>> {
+  // TODO: `clone()` are everywhere and may drag the performance down
+  pub fn phonemize_indices(&self, text: &str) -> Vec<Vec<usize>> {
     let mut words = naive_split(text);
-    let mut result = Vec::new();
-
-    // check for all UPPER CASE words, we spell them one-by-one
+    let mut result: Vec<Vec<usize>> = Vec::new();
 
     // check for numbers
     let mut i = 0;
@@ -126,11 +151,21 @@ impl Phonemizer {
         if let Some(ph) = self.normal.get(&word) {
           result.push(ph.clone())
         } else {
-          let ph = self.g2p.inference(&word);
-          result.push(ph.clone());
+          // not found in dictionary, use g2p to predict the possible spelling
+          let char_indices = self.char2idx(&word);
+          let ph_indices = self.g2p.inference(char_indices);
+          result.push(ph_indices.to_vec()); // clone also happens here.
         }
       }
     }
     result
+  }
+
+  pub fn phonemize(&self, text: &str) -> Vec<Vec<&'static str>> {
+    let vec_indices = self.phonemize_indices(text);
+    vec_indices
+      .iter()
+      .map(|indices| self.idx2ph(indices))
+      .collect()
   }
 }

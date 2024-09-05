@@ -5,13 +5,16 @@ import argparse
 import json
 from os.path import join
 from string import ascii_letters
-
+from omegaconf import OmegaConf
 
 # outputs 2 json files: `normal.en.json` and `homo.en.json`
 def dict_process(path: str, out: str):
     # unlike in preprocess.py, we don't filter out single character words
     # or non-ascii words as they're essential
     # however, we do remove the only entry `threnos` that uses `-`
+    conf = OmegaConf.load("config/en.yaml")
+    # we don't add offset for special tokens here, as it will be done in inference time
+    ph_dict = {conf.phonemes[i]: i for i in range(len(conf.phonemes))}
     f = open(path, "r")
     lines = f.readlines()
     f.close()
@@ -29,8 +32,6 @@ def dict_process(path: str, out: str):
         if len(seg) > 1:
             line = seg[0].rstrip()
         word = line.split("  ")[0]
-        phoneme = line.split("  ")[1]
-        phoneme = list(phoneme.split(" "))
         if word == "threnos":
             continue
         filtered = False
@@ -46,6 +47,7 @@ def dict_process(path: str, out: str):
         word = line.split("  ")[0]
         phoneme = line.split("  ")[1]
         phoneme = list(phoneme.split(" "))
+        phoneme = [ph_dict[p] for p in phoneme]
         match = regex.search(word)
         if not match:
             if word not in normal:
@@ -55,6 +57,7 @@ def dict_process(path: str, out: str):
         word = line.split("  ")[0]
         phoneme = line.split("  ")[1]
         phoneme = list(phoneme.split(" "))
+        phoneme = [ph_dict[p] for p in phoneme]
         match = regex.search(word)
         if match:
             pos = match.group()
@@ -69,7 +72,7 @@ def dict_process(path: str, out: str):
             if word not in normal:
                 normal[word] = phoneme
     # some edge cases
-    normal["the"] = ["dh", "ax"]
+    normal["the"] = [ph_dict["dh"], ph_dict["ax"]]
 
     homo_str = json.dumps(homo, separators=(",", ":"))
     normal_str = json.dumps(normal, separators=(",", ":"))

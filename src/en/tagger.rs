@@ -1,4 +1,4 @@
-use super::data::EN_TAGGER_DATA;
+use super::constant::EN_TAGGER_DATA;
 use ordered_float::OrderedFloat;
 use pickle::DeOptions;
 use serde_pickle as pickle;
