@@ -37,8 +37,12 @@ This section briefly introduces the phonemization pipeline for each language.
 
 Thanks for the orthography, French & German generally don't have the disambiguation (i.e. one word, multiple spelling) problem that is commonly seen in the languages above.  
 
-1. Look up words in `CC-CEDICT` for pinyin and tones.
-2. Predict the spelling with a g2p[^2] model.
+1. Look up words in `prosody-lab`'s dictionaries.
+2. For OOVs, we predict the spelling with a g2p[^2] model.
+
+### G2P
+
+The `G2P` model we're using is a seq2seq transformer model, you can find more information in [the module](src/g2p).
 
 ## Development
 
