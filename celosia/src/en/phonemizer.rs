@@ -1,18 +1,18 @@
 /// The all-in-one phonemizer for English
 use std::collections::{HashMap, HashSet};
 use std::io::{BufReader, Read};
+use std::num::NonZeroUsize;
 
+use anyhow::Result;
 use bimap::BiMap;
 use bitcode;
+use lru::LruCache;
 use zstd;
-use anyhow::Result;
 
-use super::constant::{
-  EN_ALPHABET, EN_PHONEME, PHONEMIZER_DATA, PUNCTUATION, UNK_TOKEN
-};
+use super::constant::{EN_ALPHABET, EN_PHONEME, PHONEMIZER_DATA, PUNCTUATION, UNK_TOKEN};
 use super::number::get_num;
-use super::tagger::{TaggerClasses, TaggerTagdict, TaggerWeight};
 use super::tagger::PerceptronTagger;
+use super::tagger::{TaggerClasses, TaggerTagdict, TaggerWeight};
 use super::tokenizer::naive_split;
 use crate::en::tagger::match_pos;
 use crate::g2p::constant::SPECIAL_LEN;
@@ -22,7 +22,11 @@ use crate::utils::to_bimap;
 pub type NormalDict = HashMap<String, Vec<usize>>;
 pub type HomoDict = HashMap<String, HashMap<String, Vec<usize>>>;
 
-pub type PhonemizerData = ((NormalDict, HomoDict), (TaggerWeight, TaggerTagdict, TaggerClasses), Vec<u8>);
+pub type PhonemizerData = (
+  (NormalDict, HomoDict),
+  (TaggerWeight, TaggerTagdict, TaggerClasses),
+  Vec<u8>,
+);
 
 pub(crate) fn parse_data(data: &[u8]) -> Result<PhonemizerData> {
   let reader = BufReader::new(data);
@@ -65,6 +69,7 @@ pub struct Phonemizer {
   tagger: PerceptronTagger,
   g2p: G2P,
   punc_map: HashSet<char>,
+  cache: Option<LruCache<String, Vec<usize>>>,
 }
 
 impl Default for Phonemizer {
@@ -79,9 +84,12 @@ impl Phonemizer {
     let ph_map = to_bimap(&EN_PHONEME, SPECIAL_LEN);
     let ((normal, homo), tagger_data, g2p_data) = parse_data(data).unwrap();
     let tagger = PerceptronTagger::new(tagger_data);
-    let g2p = G2P::new(&g2p_data, cache_size);
+    let g2p = G2P::new(&g2p_data);
     let punc_map = PUNCTUATION.chars().collect();
-
+    let cache = match cache_size {
+      0 => None,
+      x => Some(LruCache::new(NonZeroUsize::new(x).unwrap())),
+    };
     Self {
       char_map,
       ph_map,
@@ -90,6 +98,7 @@ impl Phonemizer {
       tagger,
       g2p,
       punc_map,
+      cache,
     }
   }
 
@@ -110,7 +119,10 @@ impl Phonemizer {
   }
 
   pub fn set_cache_size(&mut self, size: usize) {
-    self.g2p.set_cache_size(size);
+    match size {
+      0 => self.cache = None,
+      x => self.cache = Some(LruCache::new(NonZeroUsize::new(x).unwrap())),
+    }
   }
 
   /// Call the phonemizer and process the sentence.
@@ -123,7 +135,7 @@ impl Phonemizer {
   /// "Hello, world!" -> ["Hello", ",", "world", "!"] -> [["hh","ax","l","ow1"], [], ["w","er1","l","d"], []]
   /// ```
   // TODO: `clone()` are everywhere and may drag the performance down
-  pub fn phonemize_indices(&self, text: &str) -> Vec<Vec<usize>> {
+  pub fn phonemize_indices(&mut self, text: &str) -> Vec<Vec<usize>> {
     let mut words = naive_split(text);
     let mut result: Vec<Vec<usize>> = Vec::new();
 
@@ -163,16 +175,33 @@ impl Phonemizer {
           result.push(ph.clone())
         } else {
           // not found in dictionary, use g2p to predict the possible spelling
-          let char_indices = self.char2idx(&word);
-          let ph_indices = self.g2p.inference(char_indices);
-          result.push(ph_indices.to_vec()); // clone also happens here.
+          // first check if it's inside cache
+          let cached = if let Some(cache) = &mut self.cache {
+            if let Some(ph) = cache.get(&word) {
+              Some(ph)
+            } else {
+              None
+            }
+          } else {
+            None
+          };
+          if let Some(ph) = cached {
+            result.push(ph.to_owned())
+          } else {
+            let char_indices = self.char2idx(&word);
+            let ph_indices = self.g2p.inference(char_indices);
+            result.push(ph_indices.to_owned()); // clone also happens here.
+            if let Some(cache) = &mut self.cache {
+              cache.put(word, ph_indices);
+            }
+          }
         }
       }
     }
     result
   }
 
-  pub fn phonemize(&self, text: &str) -> Vec<Vec<&'static str>> {
+  pub fn phonemize(&mut self, text: &str) -> Vec<Vec<&'static str>> {
     let vec_indices = self.phonemize_indices(text);
     vec_indices
       .iter()

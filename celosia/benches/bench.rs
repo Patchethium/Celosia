@@ -4,7 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 // 5 ms/iter
 pub fn bench_phonemize(c: &mut Criterion) {
-  let phonemizer = Phonemizer::default();
+  let mut phonemizer = Phonemizer::default();
   c.bench_function("phonemize", |b| {
     black_box(b.iter(|| {
       phonemizer.phonemize(
@@ -18,10 +18,9 @@ pub fn bench_phonemize(c: &mut Criterion) {
   });
 }
 
-// 200 ms/iter
+// 2 ms/iter
 pub fn bench_phonemize_oov(c: &mut Criterion) {
   let mut phonemizer = Phonemizer::default();
-  phonemizer.set_cache_size(1024);
   c.bench_function("phonemize_oov_cached", |b| {
     black_box(b.iter(|| {
       // we use some pokemon names as OOV
@@ -54,7 +53,7 @@ pub fn bench_phonemize_oov_uncached(c: &mut Criterion) {
 // 200 ms/iter
 pub fn bench_loading_phonemizer(c: &mut Criterion) {
   let mut group = c.benchmark_group("loading");
-  group.sample_size(100); // it is a heavy function, we use smaller samples to avoid taking too long
+  group.sample_size(50); // it is a heavy function, we use smaller samples to avoid taking too long
   group.measurement_time(std::time::Duration::from_secs(10));
   group.bench_function("load_phonemizer", |b| {
     black_box(b.iter(|| {
