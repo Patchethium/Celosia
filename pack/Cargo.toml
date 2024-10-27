@@ -1,0 +1,14 @@
+[package]
+name = "pack"
+version = "0.1.0"
+edition = "2021"
+authors = ["Patchethium"]
+
+[dependencies]
+bitcode = "0.6.3"
+serde-pickle = "1.1.1"
+zstd = "0.13.2"
+celosia = { path = "../celosia" }
+clap = {version="4.5.20", features = ["derive"]}
+anyhow = "1.0.91"
+bimap = "0.6.3"
