@@ -28,7 +28,7 @@ pub type PhonemizerData = (
   Vec<u8>,
 );
 
-pub(crate) fn parse_data(data: &[u8]) -> Result<PhonemizerData> {
+pub fn parse_data(data: &[u8]) -> Result<PhonemizerData> {
   let reader = BufReader::new(data);
   let mut decoder = zstd::Decoder::new(reader)?;
   let mut buffer = Vec::new();
@@ -52,7 +52,7 @@ pub(crate) fn parse_data(data: &[u8]) -> Result<PhonemizerData> {
 /// **Example:**
 /// ```rust
 /// use celosia::en::Phonemizer as EnPhonemizer;
-/// let phonemizer = EnPhonemizer::default();
+/// let mut phonemizer = EnPhonemizer::default();
 /// // to specify the cache size
 /// // let phonemizer = Phonemizer::new(NonZeroUsize(128).unwrap())
 /// let text = "Printing, in the only sense with which we are at present concerned.";

@@ -92,8 +92,11 @@ impl AveragedPerceptron {
 /// ```
 /// use celosia::en::tagger::PerceptronTagger as tagger;
 /// use celosia::en::tokenizer::naive_split;
-///
-/// let tagger = tagger::default();
+/// use celosia::en::parse_data;
+/// use celosia::en::PHONEMIZER_DATA;
+/// 
+/// let (_, tagger_data, _) = parse_data(PHONEMIZER_DATA).unwrap();
+/// let tagger = tagger::new(tagger_data);
 /// let sentence = "The quick brown fox jumps over the lazy dog.";
 /// let tokens = naive_split(sentence);
 /// let tagged = tagger.tag(&tokens, false, true);

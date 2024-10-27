@@ -4,7 +4,7 @@
 //! The most common usage is as follows:
 //! ```
 //! use celosia::en::Phonemizer as EnPhonemizer;
-//! let phonemizer = EnPhonemizer::default();
+//! let mut phonemizer = EnPhonemizer::default();
 //! // to specify the cache size
 //! // let phonemizer = Phonemizer::new(NonZeroUsize(128).unwrap())
 //! let text = "Printing, in the only sense with which we are at present concerned.";
@@ -31,7 +31,8 @@ pub mod tagger;
 pub mod tokenizer;
 
 // re-exports
-pub use constant::{EN_ALPHABET, EN_PHONEME};
+pub use constant::{EN_ALPHABET, EN_PHONEME, PHONEMIZER_DATA};
 pub use phonemizer::Phonemizer;
 pub use phonemizer::{HomoDict, NormalDict, PhonemizerData};
 pub use tagger::{TaggerClasses, TaggerTagdict, TaggerWeight};
+pub use phonemizer::parse_data;

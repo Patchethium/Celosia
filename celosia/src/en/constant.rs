@@ -1,4 +1,4 @@
-pub(crate) static PHONEMIZER_DATA: &[u8] = include_bytes!("data/en.pack.zst");
+pub static PHONEMIZER_DATA: &[u8] = include_bytes!("data/en.pack.zst");
 pub(crate) static PUNCTUATION: &str = r##"[.,!?(){}]"##;
 
 pub static EN_ALPHABET: [char; 27] = [
