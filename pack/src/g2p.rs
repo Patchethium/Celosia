@@ -1,13 +1,16 @@
 // load the transformer from the file
 use std::io::Cursor;
 
-use crate::g2p::model::{
+use celosia::g2p::model::{
   Beta, Decoder, DecoderLayer, Embedding, Encoder, EncoderLayer, LayerNorm, Linear, Transformer,
   FFN, MHSA,
 };
 
-use super::constant::{N_DEC_LAYER, N_ENC_LAYER, N_HEAD};
 use ndarray_npy::NpzReader;
+
+pub const N_ENC_LAYER: usize = 2;
+pub const N_DEC_LAYER: usize = 2;
+pub const N_HEAD: usize = 4;
 
 // the npz will automatically append a `.npy` appendix to all the keys
 fn get_linear(reader: &mut NpzReader<Cursor<&[u8]>>, prefix: &str) -> Linear {
@@ -161,7 +164,7 @@ fn get_decoder(reader: &mut NpzReader<Cursor<&[u8]>>) -> Decoder {
 }
 
 // data is raw bytes of the npz file
-// included with `include_bytes!` macro
+// included with `include_bytes!` macro or read from file
 pub fn load_trf(data: &[u8]) -> Transformer {
   let cursor = Cursor::new(data);
   let mut npz = NpzReader::new(cursor).unwrap();

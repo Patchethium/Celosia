@@ -1,7 +1,3 @@
-pub(crate) const N_ENC_LAYER: usize = 2;
-pub(crate) const N_DEC_LAYER: usize = 2;
-pub(crate) const N_HEAD: usize = 4;
-
 pub(crate) const SPECIAL_TOKENS: [&str; 3] = ["<pad>", "<sos>", "<eos>"];
 pub(crate) const SPECIAL_LEN: usize = SPECIAL_TOKENS.len();
 

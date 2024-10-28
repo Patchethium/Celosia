@@ -16,6 +16,7 @@ use super::tagger::{TaggerClasses, TaggerTagdict, TaggerWeight};
 use super::tokenizer::naive_split;
 use crate::en::tagger::match_pos;
 use crate::g2p::constant::SPECIAL_LEN;
+use crate::g2p::model::Transformer;
 use crate::g2p::wrapper::G2P;
 use crate::utils::to_bimap;
 
@@ -25,7 +26,7 @@ pub type HomoDict = HashMap<String, HashMap<String, Vec<usize>>>;
 pub type PhonemizerData = (
   (NormalDict, HomoDict),
   (TaggerWeight, TaggerTagdict, TaggerClasses),
-  Vec<u8>,
+  Transformer,
 );
 
 pub fn parse_data(data: &[u8]) -> Result<PhonemizerData> {
@@ -33,7 +34,7 @@ pub fn parse_data(data: &[u8]) -> Result<PhonemizerData> {
   let mut decoder = zstd::Decoder::new(reader)?;
   let mut buffer = Vec::new();
   decoder.read_to_end(&mut buffer)?;
-  let data = bitcode::decode::<PhonemizerData>(&buffer)?;
+  let data = bitcode::deserialize::<PhonemizerData>(&buffer)?;
   Ok(data)
 }
 
@@ -82,9 +83,9 @@ impl Phonemizer {
   pub fn new(data: &[u8], cache_size: usize) -> Self {
     let char_map = to_bimap(&EN_ALPHABET, SPECIAL_LEN);
     let ph_map = to_bimap(&EN_PHONEME, SPECIAL_LEN);
-    let ((normal, homo), tagger_data, g2p_data) = parse_data(data).unwrap();
+    let ((normal, homo), tagger_data, trf) = parse_data(data).unwrap();
     let tagger = PerceptronTagger::new(tagger_data);
-    let g2p = G2P::new(&g2p_data);
+    let g2p = G2P::new(trf);
     let punc_map = PUNCTUATION.chars().collect();
     let cache = match cache_size {
       0 => None,

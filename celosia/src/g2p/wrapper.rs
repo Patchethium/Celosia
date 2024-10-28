@@ -1,6 +1,5 @@
 use crate::g2p::constant::{EOS_IDX, SOS_IDX};
 use crate::g2p::model::Transformer;
-use crate::g2p::serde::load_trf;
 use ndarray::Array1;
 
 pub struct G2P {
@@ -8,8 +7,7 @@ pub struct G2P {
 }
 
 impl G2P {
-  pub fn new(data: &[u8]) -> Self {
-    let trf = load_trf(data);
+  pub fn new(trf: Transformer) -> Self {
     Self { trf }
   }
 

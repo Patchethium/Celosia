@@ -1,5 +1,6 @@
 use clap::Parser;
 mod en;
+mod g2p;
 use en::pack_en;
 
 #[derive(Parser, Debug)]

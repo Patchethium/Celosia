@@ -7,7 +7,7 @@ mod tests {
   fn phonemize(text: &str) -> Vec<Vec<&str>> {
     let mut phonemizer = Phonemizer::default();
     phonemizer.phonemize(text)
-  } 
+  }
 
   #[test]
   fn test_normal_number() {

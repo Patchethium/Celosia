@@ -12,7 +12,7 @@
 //! println!("{:?}", phonemes);
 //! ```
 //! ### Numbers
-//! By default the module decides how to spell out numbers accroding
+//! By default the module decides how to spell out numbers according
 //! to some very simple rules, you can specify the way it is spelled out by
 //! calling the corresponding functions:
 //! ```
@@ -32,7 +32,7 @@ pub mod tokenizer;
 
 // re-exports
 pub use constant::{EN_ALPHABET, EN_PHONEME, PHONEMIZER_DATA};
+pub use phonemizer::parse_data;
 pub use phonemizer::Phonemizer;
 pub use phonemizer::{HomoDict, NormalDict, PhonemizerData};
 pub use tagger::{TaggerClasses, TaggerTagdict, TaggerWeight};
-pub use phonemizer::parse_data;

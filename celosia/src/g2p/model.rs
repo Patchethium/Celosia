@@ -3,6 +3,7 @@ use core::f32;
 use crate::g2p::constant::{EOS_IDX, MAX_LEN, SOS_IDX};
 use itertools::izip;
 use ndarray::{s, Array1, Array2, Array3, ArrayView1, ArrayView2, ArrayView3, Axis};
+use serde::{Serialize, Deserialize};
 
 fn argmax(a: ArrayView1<f32>) -> usize {
   let mut max_idx = 0;
@@ -15,35 +16,36 @@ fn argmax(a: ArrayView1<f32>) -> usize {
   }
   max_idx
 }
-
-pub(crate) struct Linear {
-  pub(crate) weight: Array2<f32>,
-  pub(crate) bias: Array1<f32>,
+#[derive(Serialize, Deserialize)]
+pub struct Linear {
+  pub weight: Array2<f32>,
+  pub bias: Array1<f32>,
 }
 
 impl Linear {
-  pub(crate) fn forward(&self, x: ArrayView2<f32>) -> Array2<f32> {
+  pub fn forward(&self, x: ArrayView2<f32>) -> Array2<f32> {
     x.dot(&self.weight.t()) + &self.bias
   }
 }
 
-pub(crate) struct Embedding {
-  pub(crate) weight: Array2<f32>, // [vocab_size, d_model]
+#[derive(Serialize, Deserialize)]
+pub struct Embedding {
+  pub weight: Array2<f32>, // [vocab_size, d_model]
 }
 
 impl Embedding {
-  pub(crate) fn forward(&self, idx: ArrayView1<usize>) -> Array2<f32> {
+  pub fn forward(&self, idx: ArrayView1<usize>) -> Array2<f32> {
     self.weight.select(Axis(0), idx.as_slice().unwrap())
   }
 }
-
-pub(crate) struct LayerNorm {
-  pub(crate) weight: Array1<f32>, //[d_model]
-  pub(crate) bias: Array1<f32>,   //[d_model]
+#[derive(Serialize, Deserialize)]
+pub struct LayerNorm {
+  pub weight: Array1<f32>, //[d_model]
+  pub bias: Array1<f32>,   //[d_model]
 }
 
 impl LayerNorm {
-  pub(crate) fn forward_inplace(&self, x: &mut Array2<f32>) {
+  pub fn forward_inplace(&self, x: &mut Array2<f32>) {
     // x: (seq, d_model)
     let mean = x.mean_axis(Axis(1)).unwrap().insert_axis(Axis(1)); // (seq, 1)
     let var = x.var_axis(Axis(1), 0.0).insert_axis(Axis(1)); // (seq, 1)
@@ -59,19 +61,20 @@ impl LayerNorm {
   }
 }
 
-pub(crate) struct MHSA {
-  pub(crate) d_model: usize,
-  pub(crate) n_head: usize,
-  pub(crate) d_head: usize,
-  pub(crate) scale: f32,
-  pub(crate) wq: Linear,
-  pub(crate) wk: Linear,
-  pub(crate) wv: Linear,
-  pub(crate) wo: Linear,
+#[derive(Serialize, Deserialize)]
+pub struct MHSA {
+  pub d_model: usize,
+  pub n_head: usize,
+  pub d_head: usize,
+  pub scale: f32,
+  pub wq: Linear,
+  pub wk: Linear,
+  pub wv: Linear,
+  pub wo: Linear,
 }
 
 impl MHSA {
-  pub(crate) fn new(wq: Linear, wk: Linear, wv: Linear, wo: Linear, n_head: usize) -> Self {
+  pub fn new(wq: Linear, wk: Linear, wv: Linear, wo: Linear, n_head: usize) -> Self {
     let d_model = wq.weight.shape()[1];
     let d_head = d_model / n_head;
     let scale = (d_head as f32).sqrt();
@@ -89,7 +92,7 @@ impl MHSA {
 
   // q, k, v: (seq_len, d_model)
   // beta: (n_head, seq_len_q, seq_len_k)
-  pub(crate) fn forward(
+  pub fn forward(
     &self,
     q: ArrayView2<f32>,
     k: ArrayView2<f32>,
@@ -149,28 +152,30 @@ impl MHSA {
   }
 }
 
-pub(crate) struct FFN {
-  pub(crate) linear1: Linear,
-  pub(crate) linear2: Linear,
+#[derive(Serialize, Deserialize)]
+pub struct FFN {
+  pub linear1: Linear,
+  pub linear2: Linear,
 }
 
 impl FFN {
-  pub(crate) fn forward(&self, x: ArrayView2<f32>) -> Array2<f32> {
+  pub fn forward(&self, x: ArrayView2<f32>) -> Array2<f32> {
     let mut x = self.linear1.forward(x);
     x.mapv_inplace(|x| f32::max(0.0, x));
     self.linear2.forward(x.view())
   }
 }
 
-pub(crate) struct EncoderLayer {
-  pub(crate) mhsa: MHSA,
-  pub(crate) ffn: FFN,
-  pub(crate) ln1: LayerNorm,
-  pub(crate) ln2: LayerNorm,
+#[derive(Serialize, Deserialize)]
+pub struct EncoderLayer {
+  pub mhsa: MHSA,
+  pub ffn: FFN,
+  pub ln1: LayerNorm,
+  pub ln2: LayerNorm,
 }
 
 impl EncoderLayer {
-  pub(crate) fn forward(&self, x: ArrayView2<f32>, beta: ArrayView3<f32>) -> Array2<f32> {
+  pub fn forward(&self, x: ArrayView2<f32>, beta: ArrayView3<f32>) -> Array2<f32> {
     let residual = x.view();
     let mut x = self.mhsa.forward(x, x, x, beta) + &residual;
     self.ln1.forward_inplace(&mut x);
@@ -180,18 +185,18 @@ impl EncoderLayer {
     x
   }
 }
-
-pub(crate) struct DecoderLayer {
-  pub(crate) self_mhsa: MHSA,
-  pub(crate) cross_mhsa: MHSA,
-  pub(crate) ffn: FFN,
-  pub(crate) ln1: LayerNorm,
-  pub(crate) ln2: LayerNorm,
-  pub(crate) ln3: LayerNorm,
+#[derive(Serialize, Deserialize)]
+pub struct DecoderLayer {
+  pub self_mhsa: MHSA,
+  pub cross_mhsa: MHSA,
+  pub ffn: FFN,
+  pub ln1: LayerNorm,
+  pub ln2: LayerNorm,
+  pub ln3: LayerNorm,
 }
 
 impl DecoderLayer {
-  pub(crate) fn forward(
+  pub fn forward(
     &self,
     tgt: ArrayView2<f32>,
     enc_out: ArrayView2<f32>,
@@ -211,15 +216,15 @@ impl DecoderLayer {
     tgt
   }
 }
-
-pub(crate) struct Beta {
+#[derive(Serialize, Deserialize)]
+pub struct Beta {
   weight: Array2<f32>, // (2*max_len+1, n_head)
   max_len: usize,
   n_head: usize,
 }
 
 impl Beta {
-  pub(crate) fn new(weight: Array2<f32>) -> Self {
+  pub fn new(weight: Array2<f32>) -> Self {
     let max_len = weight.shape()[0] / 2;
     let n_head = weight.shape()[1];
     Self {
@@ -228,7 +233,7 @@ impl Beta {
       n_head,
     }
   }
-  pub(crate) fn forward(&self, q_len: usize, k_len: usize) -> Array3<f32> {
+  pub fn forward(&self, q_len: usize, k_len: usize) -> Array3<f32> {
     let q_range = Array1::<isize>::from_iter(0..q_len as isize);
     let k_range = Array1::<isize>::from_iter(0..k_len as isize);
     let mut diff =
@@ -247,13 +252,14 @@ impl Beta {
   }
 }
 
-pub(crate) struct Encoder {
-  pub(crate) layers: Vec<EncoderLayer>,
-  pub(crate) beta: Beta,
+#[derive(Serialize, Deserialize)]
+pub struct Encoder {
+  pub layers: Vec<EncoderLayer>,
+  pub beta: Beta,
 }
 
 impl Encoder {
-  pub(crate) fn forward(&self, mut x: Array2<f32>) -> Array2<f32> {
+  pub fn forward(&self, mut x: Array2<f32>) -> Array2<f32> {
     let beta = self.beta.forward(x.shape()[0], x.shape()[0]);
     for layer in &self.layers {
       x.assign(&layer.forward(x.view(), beta.view()));
@@ -261,15 +267,15 @@ impl Encoder {
     x
   }
 }
-
-pub(crate) struct Decoder {
-  pub(crate) layers: Vec<DecoderLayer>,
-  pub(crate) beta1: Beta, // for self-attention
-  pub(crate) beta2: Beta, // for cross-attention
+#[derive(Serialize, Deserialize)]
+pub struct Decoder {
+  pub layers: Vec<DecoderLayer>,
+  pub beta1: Beta, // for self-attention
+  pub beta2: Beta, // for cross-attention
 }
 
 impl Decoder {
-  pub(crate) fn forward(&self, mut tgt: Array2<f32>, enc_out: ArrayView2<f32>) -> Array2<f32> {
+  pub fn forward(&self, mut tgt: Array2<f32>, enc_out: ArrayView2<f32>) -> Array2<f32> {
     let beta1 = self.beta1.forward(tgt.shape()[0], tgt.shape()[0]);
     let beta2 = self.beta2.forward(tgt.shape()[0], enc_out.shape()[0]);
     for layer in &self.layers {
@@ -279,12 +285,13 @@ impl Decoder {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Transformer {
-  pub(crate) src_emb: Embedding,
-  pub(crate) tgt_emb: Embedding,
-  pub(crate) encoder: Encoder,
-  pub(crate) decoder: Decoder,
-  pub(crate) fc: Linear,
+  pub src_emb: Embedding,
+  pub tgt_emb: Embedding,
+  pub encoder: Encoder,
+  pub decoder: Decoder,
+  pub fc: Linear,
 }
 
 impl Transformer {

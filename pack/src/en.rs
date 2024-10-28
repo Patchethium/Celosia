@@ -4,6 +4,7 @@ use celosia::en::EN_PHONEME;
 use celosia::en::{
   HomoDict, NormalDict, PhonemizerData, TaggerClasses, TaggerTagdict, TaggerWeight,
 };
+use super::g2p::load_trf;
 use serde_pickle as pickle;
 use std::collections::HashMap;
 use std::fs::File;
@@ -102,8 +103,9 @@ pub fn pack_en(path: &str, output: &str) -> Result<()> {
   let (homo, normal) = parse_dict(dict_path.as_path())?;
   let (weight, tagdict, classes) = parse_tagger(&tagger_path)?;
   let g2p_data = read_g2p(&g2p_path)?;
+  let trf = load_trf(&g2p_data);
   let encoded =
-    bitcode::encode::<PhonemizerData>(&((normal, homo), (weight, tagdict, classes), g2p_data));
+    bitcode::serialize::<PhonemizerData>(&((normal, homo), (weight, tagdict, classes), trf))?;
   let o = File::create(output)?;
   let mut encoder = Encoder::new(o, 0)?;
   encoder.write_all(&encoded)?;

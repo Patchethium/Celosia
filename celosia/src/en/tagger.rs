@@ -94,7 +94,7 @@ impl AveragedPerceptron {
 /// use celosia::en::tokenizer::naive_split;
 /// use celosia::en::parse_data;
 /// use celosia::en::PHONEMIZER_DATA;
-/// 
+///
 /// let (_, tagger_data, _) = parse_data(PHONEMIZER_DATA).unwrap();
 /// let tagger = tagger::new(tagger_data);
 /// let sentence = "The quick brown fox jumps over the lazy dog.";
@@ -127,7 +127,7 @@ impl PerceptronTagger {
       classes,
       _sentences: Vec::new(),
     };
-    
+
     tagger.make_tagdict(&mut sentences);
 
     tagger
