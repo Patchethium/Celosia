@@ -177,15 +177,7 @@ impl Phonemizer {
         } else {
           // not found in dictionary, use g2p to predict the possible spelling
           // first check if it's inside cache
-          let cached = if let Some(cache) = &mut self.cache {
-            if let Some(ph) = cache.get(&word) {
-              Some(ph)
-            } else {
-              None
-            }
-          } else {
-            None
-          };
+          let cached = self.cache.as_mut().and_then(|cache| cache.get(&word));
           if let Some(ph) = cached {
             result.push(ph.to_owned())
           } else {
