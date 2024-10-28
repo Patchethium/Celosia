@@ -63,7 +63,7 @@ mod tests {
   fn test_negative_number() {
     let text = "The absolute zero is -273.15 degree Celsius.";
     let phoneme = vec![
-      vec!["dh", "ax"],
+      vec!["dh", "iy1"],
       vec!["ae1", "b", "s", "ax", "l", "uw2", "t"],
       vec!["z", "iy1", "r", "ow0"],
       vec!["ih1", "z"],
@@ -77,6 +77,32 @@ mod tests {
       vec!["f", "ay1", "v"],
       vec!["d", "ih0", "g", "r", "iy1"],
       vec!["s", "eh1", "l", "s", "iy0", "ax", "s"],
+      vec![],
+    ];
+    _test_phonemize(text, phoneme);
+  }
+
+  #[test]
+  fn test_prevowel() {
+    let text = "I ate the apple.";
+    let phoneme = vec![
+      vec!["ay1"],
+      vec!["ey1", "t"],
+      vec!["dh", "iy1"], // prevowel changes dh ax -> dh iy
+      vec!["ae1", "p", "ax", "l"],
+      vec![],
+    ];
+    _test_phonemize(text, phoneme);
+  }
+
+  #[test]
+  fn test_an() {
+    let text = "I am an apple.";
+    let phoneme = vec![
+      vec!["ay1"],
+      vec!["ae1", "m"],
+      vec!["ax", "n"], // an -> ax n, it worth testing because `amepd` has some weird entries
+      vec!["ae1", "p", "ax", "l"],
       vec![],
     ];
     _test_phonemize(text, phoneme);

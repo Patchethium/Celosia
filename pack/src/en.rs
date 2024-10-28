@@ -12,6 +12,10 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 use zstd::Encoder;
 
+fn to_index(ph_map: &BiMap<&str, usize>, ph: &Vec<&str>) -> Vec<usize> {
+  ph.iter().map(|p| *ph_map.get_by_left(p).unwrap()).collect()
+}
+
 fn parse_dict(path: &Path) -> Result<(HomoDict, NormalDict)> {
   let dict_file = File::open(path)?;
   let reader = BufReader::new(dict_file);
@@ -70,6 +74,11 @@ fn parse_dict(path: &Path) -> Result<(HomoDict, NormalDict)> {
       line.clear();
     }
   }
+  // some special words
+  normal.insert("an".to_string(), to_index(&ph_map, &vec!["ax", "n"]));
+  normal.insert("the".to_string(), to_index(&ph_map, &vec!["dh", "ax"]));
+  homo.get_mut("an").unwrap().remove_entry("det");
+  homo.remove_entry("the");
   Ok((homo, normal))
 }
 

@@ -9,7 +9,7 @@ use bitcode;
 use lru::LruCache;
 use zstd;
 
-use super::constant::{EN_ALPHABET, EN_PHONEME, PHONEMIZER_DATA, PUNCTUATION, UNK_TOKEN};
+use super::constant::{EN_ALPHABET, EN_PHONEME, PHONEMIZER_DATA, PUNCTUATION, EN_VOWELS, UNK_TOKEN};
 use super::number::get_num;
 use super::tagger::PerceptronTagger;
 use super::tagger::{TaggerClasses, TaggerTagdict, TaggerWeight};
@@ -191,6 +191,7 @@ impl Phonemizer {
         }
       }
     }
+    self.post_process(&words, &mut result);
     result
   }
 
@@ -201,4 +202,19 @@ impl Phonemizer {
       .map(|indices| self.idx2ph(indices))
       .collect()
   }
+
+  fn post_process(&self, words: &Vec<&str>, phonemes: &mut Vec<Vec<usize>>) {
+    // the -> dh ax, but will become dh iy when followed by a vowel
+    for (i, w) in words.iter().enumerate() {
+      if w.to_lowercase() == "the" && i + 1 < words.len() {
+        if let Some(next) = phonemes.get(i + 1) {
+          if EN_VOWELS.contains(self.ph_map.get_by_right(&next[0]).unwrap()) {
+            phonemes[i] = vec![23, 40];
+          }
+        }
+      }
+    }
+  }
 }
+
+
