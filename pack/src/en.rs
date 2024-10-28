@@ -1,10 +1,10 @@
+use super::g2p::load_trf;
 use anyhow::{Error, Result};
 use bimap::BiMap;
 use celosia::en::EN_PHONEME;
 use celosia::en::{
   HomoDict, NormalDict, PhonemizerData, TaggerClasses, TaggerTagdict, TaggerWeight,
 };
-use super::g2p::load_trf;
 use serde_pickle as pickle;
 use std::collections::HashMap;
 use std::fs::File;

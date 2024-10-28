@@ -278,22 +278,18 @@ impl PerceptronTagger {
 }
 
 pub(crate) fn match_pos(nltk_pos: &str, amepd_pos: &str) -> bool {
-  match amepd_pos {
-    "adv" if nltk_pos == "RB" || nltk_pos == "RBR" || nltk_pos == "RBS" => true,
-    "prep" if nltk_pos == "IN" => true,
-    "verb" if &nltk_pos[..2.min(nltk_pos.len())] == "VB" => true,
-    "noun" if &nltk_pos[..2.min(nltk_pos.len())] == "NN" => true,
-    "num" if nltk_pos == "CD" => true,
-    amepd
-      if &amepd[..3.min(amepd.len())] == "adj" && &nltk_pos[..2.min(nltk_pos.len())] == "JJ" =>
-    {
-      true
-    }
-    "pron" if &nltk_pos[..3.min(amepd_pos.len())] == "PRP" => true,
-    "conj" if nltk_pos == "CC" => true,
-    "det" if &nltk_pos[nltk_pos.len().saturating_sub(3)..] == "DT" => true,
-    "verb@past" if nltk_pos == "VBD" || nltk_pos == "VBN" => true,
-    "intj" if nltk_pos == "UH" => true,
+  match (nltk_pos, amepd_pos) {
+    ("CC", "conj") => true,
+    ("CD", "num") => true,
+    ("DT" | "PDT", "det") => true,
+    ("IN", "prep") => true,
+    ("JJ" | "JJR" | "JJS", "adj") => true,
+    ("NN" | "NNP" | "NNS", "noun") => true,
+    ("PRP" | "PRP$", "pron") => true,
+    ("RB" | "RBR" | "RBS", "adv") => true,
+    ("UH", "intj") => true,
+    ("VB" | "VBG" | "VBP" | "VBZ", "verb") => true,
+    ("VBD" | "VBN", "verb@past") => true,
     _ => false,
   }
 }

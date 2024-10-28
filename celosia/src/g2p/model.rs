@@ -3,7 +3,7 @@ use core::f32;
 use crate::g2p::constant::{EOS_IDX, MAX_LEN, SOS_IDX};
 use itertools::izip;
 use ndarray::{s, Array1, Array2, Array3, ArrayView1, ArrayView2, ArrayView3, Axis};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 fn argmax(a: ArrayView1<f32>) -> usize {
   let mut max_idx = 0;

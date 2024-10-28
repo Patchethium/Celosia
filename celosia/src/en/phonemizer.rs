@@ -82,7 +82,7 @@ impl Default for Phonemizer {
 impl Phonemizer {
   pub fn new(data: &[u8], cache_size: usize) -> Self {
     let char_map = to_bimap(&EN_ALPHABET, SPECIAL_LEN);
-    let ph_map = to_bimap(&EN_PHONEME, SPECIAL_LEN);
+    let ph_map = to_bimap(&EN_PHONEME, 0);
     let ((normal, homo), tagger_data, trf) = parse_data(data).unwrap();
     let tagger = PerceptronTagger::new(tagger_data);
     let g2p = G2P::new(trf);
