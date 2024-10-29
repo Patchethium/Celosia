@@ -96,12 +96,12 @@ You'll find checkpoints in `train/ckpt` and config the training with `train/conf
 
 ## Export
 
-To use the checkpoints into weight files `Antheila` can read, run:
+To use the checkpoints into weight files `Celosia` can pack, run:
 ```bash
 python export.py {checkpoint_path} {weight_path}
 
 # example
-python export.py ./ckpt/en-ckpt-epoch-5.pth ./ckpt/en.bin 
+python export.py ./ckpt/en-ckpt-epoch-5.pth ./ckpt/en.npz 
 ```
 
 ## Evaluate

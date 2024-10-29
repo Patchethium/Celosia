@@ -104,7 +104,7 @@ pub fn pack_en(path: &str, output: &str) -> Result<()> {
   let root = Path::new(path);
   let output = Path::new(output);
   let dict_path = root.join("cmudict");
-  let tagger_path = root.join("average_perceptron_tagger.pickle");
+  let tagger_path = root.join("averaged_perceptron_tagger.pickle");
   let g2p_path = root.join("g2p.npz");
   if !(dict_path.is_file() && tagger_path.is_file() && g2p_path.is_file()) {
     return Err(Error::msg("Missing assets"));
