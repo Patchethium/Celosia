@@ -6,7 +6,7 @@ use celosia::en::{
   HomoDict, NormalDict, PhonemizerData, TaggerClasses, TaggerTagdict, TaggerWeight,
 };
 use serde_pickle as pickle;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;

@@ -1,27 +1,27 @@
 use ordered_float::OrderedFloat;
 use std::cmp::{Ordering, PartialOrd};
-use std::collections::{BTreeMap, BTreeSet};
+use hashbrown::{HashMap, HashSet};
 
-pub type TaggerWeight = BTreeMap<String, BTreeMap<String, f64>>;
-pub type TaggerTagdict = BTreeMap<String, String>;
-pub type TaggerClasses = BTreeSet<String>;
+pub type TaggerWeight = HashMap<String, HashMap<String, f64>>;
+pub type TaggerTagdict = HashMap<String, String>;
+pub type TaggerClasses = HashSet<String>;
 
 pub type TaggerData = (TaggerWeight, TaggerTagdict, TaggerClasses);
 
 #[derive(Debug)]
 struct AveragedPerceptron {
-  weights: BTreeMap<String, BTreeMap<String, f64>>,
-  classes: BTreeSet<String>,
-  _totals: BTreeMap<(String, String), f64>,
-  _tstamps: BTreeMap<(String, String), i32>,
+  weights: HashMap<String, HashMap<String, f64>>,
+  classes: HashSet<String>,
+  _totals: HashMap<(String, String), f64>,
+  _tstamps: HashMap<(String, String), i32>,
 }
 
 impl AveragedPerceptron {
-  pub fn new(weights: Option<BTreeMap<String, BTreeMap<String, f64>>>) -> AveragedPerceptron {
+  pub fn new(weights: Option<HashMap<String, HashMap<String, f64>>>) -> AveragedPerceptron {
     let weights = weights.unwrap_or_default();
-    let classes = BTreeSet::new();
-    let _totals: BTreeMap<(String, String), f64> = BTreeMap::new();
-    let _tstamps: BTreeMap<(String, String), i32> = BTreeMap::new();
+    let classes = HashSet::new();
+    let _totals: HashMap<(String, String), f64> = HashMap::new();
+    let _tstamps: HashMap<(String, String), i32> = HashMap::new();
 
     AveragedPerceptron {
       weights,
@@ -33,10 +33,10 @@ impl AveragedPerceptron {
 
   pub fn predict(
     &self,
-    features: &BTreeMap<String, i32>,
+    features: &HashMap<String, i32>,
     return_conf: bool,
   ) -> (String, Option<f64>) {
-    let mut scores: BTreeMap<String, f64> = BTreeMap::new();
+    let mut scores: HashMap<String, f64> = HashMap::new();
     for (feat, value) in features.iter() {
       if !self.weights.contains_key(feat) || *value == 0 {
         continue;
@@ -77,7 +77,7 @@ impl AveragedPerceptron {
   // pub fn update
   // pub fn average_weights
 
-  fn softmax(&self, scores: &BTreeMap<String, f64>) -> Vec<f64> {
+  fn softmax(&self, scores: &HashMap<String, f64>) -> Vec<f64> {
     let s: Vec<f64> = scores.values().cloned().collect();
     let exps: Vec<f64> = s.iter().map(|&score| score.exp()).collect();
     let sum: f64 = exps.iter().sum();
@@ -105,8 +105,8 @@ impl AveragedPerceptron {
 #[derive(Debug)]
 pub struct PerceptronTagger {
   model: AveragedPerceptron,
-  tagdict: BTreeMap<String, String>,
-  classes: BTreeSet<String>,
+  tagdict: HashMap<String, String>,
+  classes: HashSet<String>,
   _sentences: Vec<Vec<(String, String)>>,
 }
 
@@ -157,7 +157,7 @@ impl PerceptronTagger {
 
       let (tag, conf) = match tag {
         None => {
-          let features: BTreeMap<String, i32> =
+          let features: HashMap<String, i32> =
             self._get_features(i, word, &context, &prev, &prev2);
           self.model.predict(&features, return_conf)
         }
@@ -174,13 +174,13 @@ impl PerceptronTagger {
   }
 
   fn make_tagdict(&mut self, sentences: &mut Vec<Vec<(String, String)>>) {
-    let mut counts: BTreeMap<String, BTreeMap<String, i32>> = BTreeMap::new();
+    let mut counts: HashMap<String, HashMap<String, i32>> = HashMap::new();
 
     for sentence in sentences.iter() {
       for (word, tag) in sentence {
         counts
           .entry(word.to_string())
-          .or_insert(BTreeMap::new())
+          .or_insert(HashMap::new())
           .entry(tag.to_string())
           .and_modify(|count| *count += 1)
           .or_insert(1);
@@ -223,11 +223,11 @@ impl PerceptronTagger {
     context: &Vec<String>,
     prev: &str,
     prev2: &str,
-  ) -> BTreeMap<String, i32> {
+  ) -> HashMap<String, i32> {
     let mut i = i as i32;
     i += START.len() as i32;
 
-    let mut features: BTreeMap<String, i32> = BTreeMap::new();
+    let mut features: HashMap<String, i32> = HashMap::new();
 
     // It's useful to have a constant feature, which acts sort of like a prior
     features.insert("bias".to_string(), 1);
@@ -260,7 +260,7 @@ impl PerceptronTagger {
     add(&mut features, "i+1 suffix", i_plus_1_suffix);
     add(&mut features, "i+2 word", i_plus_2_word);
 
-    fn add(features: &mut BTreeMap<String, i32>, name: &str, args: &str) {
+    fn add(features: &mut HashMap<String, i32>, name: &str, args: &str) {
       *features.entry(format!("{} {}", name, args)).or_insert(0) += 1;
     }
 

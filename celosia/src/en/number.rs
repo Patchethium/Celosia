@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use regex::Regex;
-use std::collections::HashMap;
+use hashbrown::HashMap;
 use std::sync::LazyLock;
 
 // transform a number into English words.

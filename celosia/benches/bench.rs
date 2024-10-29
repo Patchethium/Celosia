@@ -32,7 +32,7 @@ pub fn bench_phonemize_oov(c: &mut Criterion) {
   });
 }
 
-// 150 ms/iter
+// 200 ms/iter
 pub fn bench_phonemize_oov_uncached(c: &mut Criterion) {
   let mut phonemizer = Phonemizer::default(); // no cache
   phonemizer.set_cache_size(0);
@@ -50,7 +50,7 @@ pub fn bench_phonemize_oov_uncached(c: &mut Criterion) {
   });
 }
 
-// 200 ms/iter
+// 150 ms/iter
 pub fn bench_loading_phonemizer(c: &mut Criterion) {
   let mut group = c.benchmark_group("loading");
   group.sample_size(50); // it is a heavy function, we use smaller samples to avoid taking too long

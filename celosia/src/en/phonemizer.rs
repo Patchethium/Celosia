@@ -1,5 +1,5 @@
 /// The all-in-one phonemizer for English
-use std::collections::{HashMap, HashSet};
+use hashbrown::{HashMap, HashSet};
 use std::io::{BufReader, Read};
 use std::num::NonZeroUsize;
 

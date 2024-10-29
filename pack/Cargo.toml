@@ -15,3 +15,4 @@ anyhow = "1.0.91"
 bimap = "0.6.3"
 ndarray = { version = "0.16.1", features = ["serde"] }
 ndarray-npy = "0.9.1"
+hashbrown = "0.15.0"
