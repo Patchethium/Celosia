@@ -1,6 +1,8 @@
 [workspace]
-members = ["celosia", "pack"]
+members = ["celosia", "pack", "examples/*"]
+default-members = ["celosia", "pack"]
 resolver = "2"
+
 [profile.release]
 strip = true
 opt-level = "z"

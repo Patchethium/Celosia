@@ -1,46 +1,45 @@
 use anyhow::{Context, Result};
-use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 // transform a number into English words.
 // lazy initialize a hash map of common words.
-lazy_static! {
-  static ref NUMMAP: HashMap<u32, &'static str> = {
-    let mut m = HashMap::new();
-    m.insert(0, "zero");
-    m.insert(1, "one");
-    m.insert(2, "two");
-    m.insert(3, "three");
-    m.insert(4, "four");
-    m.insert(5, "five");
-    m.insert(6, "six");
-    m.insert(7, "seven");
-    m.insert(8, "eight");
-    m.insert(9, "nine");
-    m.insert(10, "ten");
-    m.insert(11, "eleven");
-    m.insert(12, "twelve");
-    m.insert(13, "thirteen");
-    m.insert(14, "fourteen");
-    m.insert(15, "fifteen");
-    m.insert(16, "sixteen");
-    m.insert(17, "seventeen");
-    m.insert(18, "eighteen");
-    m.insert(19, "nineteen");
-    m.insert(20, "twenty");
-    m.insert(30, "thirty");
-    m.insert(40, "forty");
-    m.insert(50, "fifty");
-    m.insert(60, "sixty");
-    m.insert(70, "seventy");
-    m.insert(80, "eighty");
-    m.insert(90, "ninety");
-    m.insert(100, "hundred");
-    m.insert(1000, "thousand");
-    m
-  };
-}
+
+static NUMMAP: LazyLock<HashMap<u32, &'static str>> = LazyLock::new(|| {
+  let mut m = HashMap::new();
+  m.insert(0, "zero");
+  m.insert(1, "one");
+  m.insert(2, "two");
+  m.insert(3, "three");
+  m.insert(4, "four");
+  m.insert(5, "five");
+  m.insert(6, "six");
+  m.insert(7, "seven");
+  m.insert(8, "eight");
+  m.insert(9, "nine");
+  m.insert(10, "ten");
+  m.insert(11, "eleven");
+  m.insert(12, "twelve");
+  m.insert(13, "thirteen");
+  m.insert(14, "fourteen");
+  m.insert(15, "fifteen");
+  m.insert(16, "sixteen");
+  m.insert(17, "seventeen");
+  m.insert(18, "eighteen");
+  m.insert(19, "nineteen");
+  m.insert(20, "twenty");
+  m.insert(30, "thirty");
+  m.insert(40, "forty");
+  m.insert(50, "fifty");
+  m.insert(60, "sixty");
+  m.insert(70, "seventy");
+  m.insert(80, "eighty");
+  m.insert(90, "ninety");
+  m.insert(100, "hundred");
+  m.insert(1000, "thousand");
+  m
+});
 
 /// Spells out numbers one by one.
 /// ```text

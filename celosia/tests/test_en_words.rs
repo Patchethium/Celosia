@@ -107,4 +107,19 @@ mod tests {
     ];
     _test_phonemize(text, phoneme);
   }
+
+  #[test]
+  fn test_slash() {
+    let text = "I will visit Yoshida-san.";
+    let phoneme = vec![
+      vec!["ay1"],
+      vec!["w", "ih1", "l"],
+      vec!["v", "ih1", "z", "ih0", "t"],
+      vec!["y", "ow0", "sh", "iy1", "d", "ax"],
+      vec![], // the `-` will be ignored
+      vec!["s", "ae1", "n"],
+      vec![],
+    ];
+    _test_phonemize(text, phoneme);
+  }
 }

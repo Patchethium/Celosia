@@ -1,0 +1,10 @@
+[package]
+name = "demo-en"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+celosia = {path = "../../celosia"}
+eframe = "0.29.1"
+egui = "0.29.1"

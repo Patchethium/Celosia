@@ -9,7 +9,9 @@ use bitcode;
 use lru::LruCache;
 use zstd;
 
-use super::constant::{EN_ALPHABET, EN_PHONEME, PHONEMIZER_DATA, PUNCTUATION, EN_VOWELS, UNK_TOKEN};
+use super::constant::{
+  EN_ALPHABET, EN_PHONEME, EN_VOWELS, PHONEMIZER_DATA, PUNCTUATION, UNK_TOKEN,
+};
 use super::number::get_num;
 use super::tagger::PerceptronTagger;
 use super::tagger::{TaggerClasses, TaggerTagdict, TaggerWeight};
@@ -216,5 +218,3 @@ impl Phonemizer {
     }
   }
 }
-
-

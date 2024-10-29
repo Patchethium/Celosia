@@ -16,7 +16,6 @@ bimap = "0.6.3"
 lru = "0.12.3"
 ndarray = { "version" = "0.16.1", "features" = ["rayon", "matrixmultiply-threading", "serde"] }
 itertools = "0.13.0"
-lazy_static = "1.5.0"
 bitcode = {version="0.6.3", features = ["serde"]}
 zstd = "0.13.2"
 

@@ -52,7 +52,23 @@ mod tests {
   #[test]
   fn test_float_number() {
     let text = "The absolute zero is -273.15 degree Celsius.";
-    let phonemes = vec![vec!["dh", "iy1"], vec!["ae1", "b", "s", "ax", "l", "uw2", "t"], vec!["z", "iy1", "r", "ow0"], vec!["ih1", "z"], vec!["m", "ay1", "n", "ax", "s"], vec!["t", "uw1"], vec!["hh", "ah1", "n", "d", "r", "ih0", "d"], vec!["s", "eh1", "v", "ax", "n", "t", "iy0"], vec!["th", "r", "iy1"], vec!["p", "oy1", "n", "t"], vec!["w", "ah1", "n"], vec!["f", "ay1", "v"], vec!["d", "ih0", "g", "r", "iy1"], vec!["s", "eh1", "l", "s", "iy0", "ax", "s"], vec![]];
+    let phonemes = vec![
+      vec!["dh", "iy1"],
+      vec!["ae1", "b", "s", "ax", "l", "uw2", "t"],
+      vec!["z", "iy1", "r", "ow0"],
+      vec!["ih1", "z"],
+      vec!["m", "ay1", "n", "ax", "s"],
+      vec!["t", "uw1"],
+      vec!["hh", "ah1", "n", "d", "r", "ih0", "d"],
+      vec!["s", "eh1", "v", "ax", "n", "t", "iy0"],
+      vec!["th", "r", "iy1"],
+      vec!["p", "oy1", "n", "t"],
+      vec!["w", "ah1", "n"],
+      vec!["f", "ay1", "v"],
+      vec!["d", "ih0", "g", "r", "iy1"],
+      vec!["s", "eh1", "l", "s", "iy0", "ax", "s"],
+      vec![],
+    ];
     _test_phonemize(text, phonemes);
   }
 
